@@ -1,0 +1,21 @@
+# --- Файл: requirements.txt ---
+
+# Основной фреймворк GUI
+PySide6
+
+# Библиотека для работы с Google Gemini API
+google-generativeai
+
+# Для работы с файлами окружения (.env)
+python-dotenv
+
+# Для работы с GitHub API
+PyGithub
+
+# Для рендеринга ответов от модели в HTML
+Markdown
+Pygments
+
+# Для чтения файлов .pdf и .docx (на случай, если они есть в репозитории)
+pypdf2
+python-docx
