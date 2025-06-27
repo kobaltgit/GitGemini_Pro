@@ -88,8 +88,8 @@ class ChatViewModel(QObject):
         # Настройки UI
         self._settings_visible: bool = False
         self._instructions_visible: bool = True
-        self._checked_common_extensions: set[str] = set(self._model.get_extensions())
-        self._custom_extensions_text: str = ""
+        # self._checked_common_extensions: set[str] = set(self._model.get_extensions())
+        # self._custom_extensions_text: str = ""
 
         # Состояние поиска
         self._search_query: Optional[str] = None
@@ -181,11 +181,17 @@ class ChatViewModel(QObject):
     # Свойства, управляющие состоянием кнопок
     @Property(bool, notify=canSendChanged)
     def canSend(self) -> bool:
+        collection_is_ready = False
+        if self._model._current_collection:
+            # Проверяем, что в коллекции есть хотя бы один документ
+            if self._model._vector_db_manager.get_collection_doc_count(self._model._current_collection) > 0:
+                collection_is_ready = True
+
         return (self._is_chat_view_ready and
                 self._model._gemini_api_key_loaded and
                 self._model._github_token_loaded and
                 bool(self._model.get_repo_url()) and
-                bool(self._model._file_summaries) and # Главное - есть саммари
+                collection_is_ready and # <-- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
                 not self._is_request_running and
                 not self._is_analysis_running)
 
@@ -411,6 +417,8 @@ class ChatViewModel(QObject):
         
     @Slot()
     def _on_session_loaded(self):
+        self._checked_common_extensions = set(self._model.get_extensions())
+        self._custom_extensions_text = ""
         logger.info("--- ViewModel: Загрузка/обновление состояния из Модели ---")
         # self.repoUrlChanged.emit()
         self.modelNameChanged.emit()

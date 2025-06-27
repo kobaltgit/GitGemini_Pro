@@ -56,3 +56,9 @@ __pycache__/
 # Кэш PyInstaller
 /pyinstaller/
 /pyinstaller-build/
+
+# Векторные базы данных ChromaDB
+*_vectordb/
+
+# Кэш моделей Sentence Transformers (на всякий случай)
+.cache/

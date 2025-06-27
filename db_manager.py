@@ -14,9 +14,10 @@ SESSION_EXTENSION = ".gpcs"
 DATABASE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS metadata (
     id INTEGER PRIMARY KEY DEFAULT 1,
-    -- Заменили project_path на repo_url
     repo_url TEXT,
     repo_branch TEXT,
+    -- НОВОЕ ПОЛЕ для хранения пути к векторной базе данных
+    vector_db_path TEXT,
     model_name TEXT,
     max_output_tokens INTEGER,
     extensions TEXT,
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS messages (
     excluded_from_api BOOLEAN NOT NULL DEFAULT 0
 );
 
--- НОВАЯ ТАБЛИЦА для хранения саммари файлов (наш "индекс")
+-- Таблица для саммари остается для быстрого отображения в UI
 CREATE TABLE IF NOT EXISTS file_summaries (
     file_path TEXT PRIMARY KEY NOT NULL,
     summary TEXT NOT NULL
@@ -72,7 +73,6 @@ def init_session_db(filepath: str) -> bool:
         return False
     try:
         logger.info(f"Инициализация/проверка БД сессии: {filepath}")
-        # Убедимся, что директория существует
         dir_name = os.path.dirname(filepath)
         if dir_name:
             os.makedirs(dir_name, exist_ok=True)
@@ -80,7 +80,6 @@ def init_session_db(filepath: str) -> bool:
         with _get_connection(filepath) as conn:
             if conn:
                 conn.executescript(DATABASE_SCHEMA)
-                # Попытка добавить новые колонки/таблицы для обратной совместимости
                 _update_db_schema(conn)
             else:
                 return False
@@ -97,33 +96,30 @@ def _update_db_schema(conn: sqlite3.Connection):
     """
     Пытается обновить схему старой базы данных, добавляя недостающие таблицы/колонки.
     """
+    columns_to_add = [
+        ("metadata", "repo_branch", "TEXT"),
+        ("metadata", "vector_db_path", "TEXT"),
+        ("messages", "excluded_from_api", "BOOLEAN NOT NULL DEFAULT 0")
+    ]
+
+    for table, column, col_type in columns_to_add:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type};")
+            logger.info(f"Схема обновлена: добавлена колонка {table}.{column}")
+        except sqlite3.OperationalError:
+            pass # Колонка уже существует
+
     try:
-        # Для обновления с `project_path` на `repo_url`
+        # Для обратной совместимости, если старое поле project_path существует
         conn.execute("ALTER TABLE metadata RENAME COLUMN project_path TO repo_url;")
         logger.info("Схема обновлена: metadata.project_path -> repo_url")
     except sqlite3.OperationalError:
         pass # Колонка уже переименована или ее не было
 
     try:
-        # Для добавления repo_branch
-        conn.execute("ALTER TABLE metadata ADD COLUMN repo_branch TEXT;")
-        logger.info("Схема обновлена: добавлена колонка metadata.repo_branch")
-    except sqlite3.OperationalError:
-        pass # Колонка уже существует
-        
-    try:
-        # Для добавления excluded_from_api
-        conn.execute("ALTER TABLE messages ADD COLUMN excluded_from_api BOOLEAN NOT NULL DEFAULT 0;")
-        logger.info("Схема обновлена: добавлена колонка messages.excluded_from_api")
-    except sqlite3.OperationalError:
-        pass # Колонка уже существует
-
-    try:
-        # Для добавления таблицы file_summaries (она создается в основном скрипте, но для надежности)
         conn.execute("CREATE TABLE IF NOT EXISTS file_summaries (file_path TEXT PRIMARY KEY NOT NULL, summary TEXT NOT NULL);")
-        logger.info("Схема обновлена: проверено наличие таблицы file_summaries")
     except sqlite3.OperationalError:
-        pass # Таблица уже существует
+        pass
 
 
 def load_session_data(
@@ -137,7 +133,6 @@ def load_session_data(
         logger.error(f"Файл сессии не найден: {filepath}")
         return None
         
-    # Проверяем и при необходимости обновляем схему перед загрузкой
     if not init_session_db(filepath):
         logger.error(f"Не удалось инициализировать/обновить файл сессии '{filepath}' перед загрузкой.")
         return None
@@ -147,11 +142,9 @@ def load_session_data(
         with _get_connection(filepath) as conn:
             if not conn: return None
             
-            # Загрузка метаданных
             metadata_cursor = conn.execute("SELECT * FROM metadata WHERE id = 1")
             metadata = metadata_cursor.fetchone() or {}
 
-            # Загрузка сообщений
             messages_cursor = conn.execute("SELECT role, content, excluded_from_api FROM messages ORDER BY order_index ASC")
             messages_list = [
                 {
@@ -162,7 +155,6 @@ def load_session_data(
                 for row in messages_cursor.fetchall()
             ]
 
-            # Загрузка саммари
             summaries_cursor = conn.execute("SELECT file_path, summary FROM file_summaries")
             summaries_dict = {row["file_path"]: row["summary"] for row in summaries_cursor.fetchall()}
 
@@ -205,8 +197,14 @@ def save_session_data(
                 # Сохранение метаданных
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO metadata (id, repo_url, repo_branch, model_name, max_output_tokens, extensions, instructions, created_at, last_saved_at)
-                    VALUES (1, :repo_url, :repo_branch, :model_name, :max_output_tokens, :extensions, :instructions, :created_at, :last_saved_at)
+                    INSERT OR REPLACE INTO metadata (
+                        id, repo_url, repo_branch, vector_db_path, model_name, 
+                        max_output_tokens, extensions, instructions, created_at, last_saved_at
+                    )
+                    VALUES (
+                        1, :repo_url, :repo_branch, :vector_db_path, :model_name, 
+                        :max_output_tokens, :extensions, :instructions, :created_at, :last_saved_at
+                    )
                     """,
                     metadata_dict,
                 )
@@ -231,10 +229,11 @@ def save_session_data(
                 # Сохранение саммари
                 cursor.execute("DELETE FROM file_summaries;")
                 summaries_to_insert = list(summaries_dict.items())
-                cursor.executemany(
-                    "INSERT INTO file_summaries (file_path, summary) VALUES (?, ?)",
-                    summaries_to_insert
-                )
+                if summaries_to_insert:
+                    cursor.executemany(
+                        "INSERT INTO file_summaries (file_path, summary) VALUES (?, ?)",
+                        summaries_to_insert
+                    )
 
                 conn.commit()
                 logger.info(f"Сессия успешно сохранена. Сообщений: {len(messages_to_insert)}, Саммари: {len(summaries_to_insert)}")
