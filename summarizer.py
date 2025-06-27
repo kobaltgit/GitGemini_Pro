@@ -48,6 +48,7 @@ class SummarizerWorker(QThread):
     def __init__(self,
                  github_manager: GitHubManager,
                  repo: Repository,
+                 branch_name: str,
                  files_to_summarize: Dict[str, int], # {path: size}
                  gemini_api_key: str,
                  model_name: str,
@@ -55,6 +56,7 @@ class SummarizerWorker(QThread):
         super().__init__(parent)
         self.github_manager = github_manager
         self.repo = repo
+        self.branch_name = branch_name
         self.files_to_summarize = files_to_summarize
         self.gemini_api_key = gemini_api_key
         self.model_name = model_name
@@ -91,7 +93,7 @@ class SummarizerWorker(QThread):
             logger.debug(f"Саммаризация файла: {file_path}")
             
             # 1. Получаем содержимое файла
-            content = self.github_manager.get_file_content(self.repo, file_path)
+            content = self.github_manager.get_file_content(self.repo, file_path, self.branch_name)
             
             if content is None:
                 logger.warning(f"Пропуск саммаризации для файла '{file_path}', так как не удалось получить его содержимое.")

@@ -59,50 +59,53 @@ class GitHubManager:
         return self.gh is not None and self.token is not None
 
     @staticmethod
-    def _parse_repo_url(repo_url: str) -> Optional[Tuple[str, str]]:
+    def _parse_repo_url(repo_url: str) -> Optional[Tuple[str, str, Optional[str]]]:
         """
-        Извлекает 'владелец/имя_репозитория' из полного URL GitHub.
+        Извлекает 'владелец/имя_репозитория' и опционально 'ветку' из URL.
         
         Args:
-            repo_url: URL репозитория (например, https://github.com/user/repo).
+            repo_url: URL репозитория.
         
         Returns:
-            Кортеж (owner, repo_name) или None, если URL некорректен.
+            Кортеж (owner, repo_name, branch_name) или None.
         """
-        # Паттерн для извлечения 'owner/repo' из различных форматов URL
-        pattern = r"(?:https?://)?(?:www\.)?github\.com/([\w\.\-]+)/([\w\.\-]+)"
+        # Паттерн теперь опционально захватывает часть URL с /tree/branch-name
+        pattern = r"(?:https?://)?(?:www\.)?github\.com/([\w\.\-]+)/([\w\.\-]+)(?:/tree/([\w\.\-]+))?"
         match = re.search(pattern, repo_url)
         if match:
-            owner, repo_name = match.groups()
-            logger.debug(f"URL '{repo_url}' успешно распарсен как '{owner}/{repo_name}'")
-            return owner, repo_name
+            owner, repo_name, branch = match.groups()
+            logger.debug(f"URL '{repo_url}' распарсен как '{owner}/{repo_name}' (Ветка: {branch})")
+            return owner, repo_name, branch
         logger.warning(f"Не удалось распарсить URL репозитория: '{repo_url}'")
         return None
 
-    def get_repo(self, repo_url: str) -> Optional[Repository]:
+    def get_repo(self, repo_url: str) -> Optional[Tuple[Repository, Optional[str]]]:
         """
-        Получает объект репозитория по его URL.
+        Получает объект репозитория и имя ветки из URL.
 
         Args:
             repo_url: Полный URL репозитория.
 
         Returns:
-            Объект `Repository` из PyGithub или None в случае ошибки.
+            Кортеж (объект Repository, имя ветки) или None.
         """
         if not self.gh:
             logger.error("Невозможно получить репозиторий: клиент GitHub не инициализирован.")
             return None
 
-        repo_identifier = self._parse_repo_url(repo_url)
-        if not repo_identifier:
+        parsed_data = self._parse_repo_url(repo_url)
+        if not parsed_data:
             return None
+        
+        owner, repo_name, branch_from_url = parsed_data
+        repo_identifier = f"{owner}/{repo_name}"
 
         try:
-            repo = self.gh.get_repo(f"{repo_identifier[0]}/{repo_identifier[1]}")
+            repo = self.gh.get_repo(repo_identifier)
             logger.info(f"Успешно получен доступ к репозиторию: {repo.full_name}")
-            return repo
+            return repo, branch_from_url
         except UnknownObjectException:
-            logger.error(f"Репозиторий '{repo_identifier[0]}/{repo_identifier[1]}' не найден или является приватным без доступа.")
+            logger.error(f"Репозиторий '{repo_identifier}' не найден или является приватным без доступа.")
             return None
         except BadCredentialsException:
             logger.error("Ошибка аутентификации при доступе к репозиторию. Проверьте ваш токен.")
@@ -113,35 +116,45 @@ class GitHubManager:
         except Exception as e:
             logger.error(f"Неожиданная ошибка при получении репозитория: {e}")
             return None
+        
+    def get_available_branches(self, repo: Repository) -> List[str]:
+        """Возвращает отсортированный список имен всех веток в репозитории."""
+        if not repo:
+            return []
+        try:
+            branches = [branch.name for branch in repo.get_branches()]
+            # Перемещаем ветку по умолчанию в начало списка
+            default_branch = repo.default_branch
+            if default_branch in branches:
+                branches.remove(default_branch)
+                branches.insert(0, default_branch)
+            logger.info(f"Найдено {len(branches)} веток для репозитория '{repo.full_name}'.")
+            return branches
+        except Exception as e:
+            logger.error(f"Не удалось получить список веток для '{repo.full_name}': {e}")
+            return []
 
     def get_repo_file_tree(
         self, 
-        repo: Repository, 
+        repo: Repository,
+        branch_name: str,
         extensions: Tuple[str, ...],
         ignored_dirs: Set[str] = DEFAULT_IGNORED_DIRS,
         max_file_size_kb: int = 512
     ) -> Tuple[Dict[str, int], List[str]]:
         """
-        Получает плоский список путей к файлам в репозитории, отфильтрованный по расширениям и размеру.
-
-        Args:
-            repo: Объект репозитория.
-            extensions: Кортеж разрешенных расширений (например, ('.py', '.md')).
-            ignored_dirs: Множество имен папок для игнорирования.
-            max_file_size_kb: Максимальный размер файла в килобайтах.
-
-        Returns:
-            Кортеж, где:
-            - Первый элемент: Словарь {путь_к_файлу: размер_в_байтах}.
-            - Второй элемент: Список строк с информацией о пропущенных файлах.
+        Получает плоский список путей к файлам в указанной ветке репозитория.
         """
-        logger.info(f"Начинается анализ дерева файлов для репозитория '{repo.full_name}'...")
+        logger.info(f"Начинается анализ дерева файлов для '{repo.full_name}' в ветке '{branch_name}'...")
         try:
-            default_branch = repo.get_branch(repo.default_branch)
-            tree = repo.get_git_tree(default_branch.commit.sha, recursive=True)
+            branch = repo.get_branch(branch_name)
+            tree = repo.get_git_tree(branch.commit.sha, recursive=True)
             logger.info(f"Получено дерево файлов, {len(tree.tree)} элементов.")
+        except UnknownObjectException:
+            logger.error(f"Ветка '{branch_name}' не найдена в репозитории '{repo.full_name}'.")
+            return {}, [f"Ошибка: Ветка '{branch_name}' не найдена."]
         except Exception as e:
-            logger.error(f"Не удалось получить дерево файлов для репозитория '{repo.full_name}': {e}")
+            logger.error(f"Не удалось получить дерево файлов для ветки '{branch_name}': {e}")
             return {}, [f"Ошибка: Не удалось получить дерево файлов: {e}"]
 
         filtered_files: Dict[str, int] = {}
@@ -149,47 +162,32 @@ class GitHubManager:
         max_size_bytes = max_file_size_kb * 1024
 
         for element in tree.tree:
-            if element.type == "blob":  # 'blob' означает файл
-                path_parts = element.path.split('/')
-                
-                # Пропускаем игнорируемые директории
-                if any(part in ignored_dirs for part in path_parts):
+            if element.type == "blob":
+                if any(part in ignored_dirs for part in element.path.split('/')):
                     continue
-
-                # Пропускаем файлы без нужного расширения
                 if not element.path.endswith(extensions):
                     continue
-                
-                # Пропускаем слишком большие файлы
                 if element.size > max_size_bytes:
                     skipped_info.append(f"Пропущен (размер > {max_file_size_kb}KB): {element.path}")
                     continue
-
                 filtered_files[element.path] = element.size
 
         logger.info(f"Анализ дерева завершен. Найдено подходящих файлов: {len(filtered_files)}. Пропущено: {len(skipped_info)}.")
         return filtered_files, skipped_info
 
-    def get_file_content(self, repo: Repository, file_path: str) -> Optional[str]:
+    def get_file_content(self, repo: Repository, file_path: str, branch_name: str) -> Optional[str]:
         """
-        Получает содержимое одного файла из репозитория.
-
-        Args:
-            repo: Объект репозитория.
-            file_path: Путь к файлу внутри репозитория.
-
-        Returns:
-            Содержимое файла в виде строки или None в случае ошибки.
+        Получает содержимое одного файла из указанной ветки репозитория.
         """
         if not file_path:
              logger.warning("get_file_content вызван с пустым путем. Пропуск.")
              return None
              
-        logger.debug(f"Запрос содержимого файла: {file_path}")
+        logger.debug(f"Запрос содержимого файла: {file_path} из ветки {branch_name}")
         try:
-            content_file = repo.get_contents(file_path)
+            # Используем ref=branch_name для указания ветки
+            content_file = repo.get_contents(file_path, ref=branch_name)
 
-            # Проверка, что мы получили файл, а не список (директорию)
             if isinstance(content_file, list):
                 logger.warning(f"Путь '{file_path}' указывает на директорию, а не на файл. Пропуск.")
                 return None
@@ -199,11 +197,10 @@ class GitHubManager:
                 return decoded_content
             else:
                 logger.warning(f"Файл '{file_path}' пуст или имеет неизвестную кодировку: {content_file.encoding}")
-                return "" # Возвращаем пустую строку для пустых файлов
+                return ""
         except UnknownObjectException:
-            logger.error(f"Файл '{file_path}' не найден в репозитории.")
+            logger.error(f"Файл '{file_path}' не найден в ветке '{branch_name}'.")
             return None
         except Exception as e:
-            # GitHub API может вернуть ошибку, если файл слишком большой
             logger.error(f"Не удалось получить содержимое файла '{file_path}': {e}")
             return None

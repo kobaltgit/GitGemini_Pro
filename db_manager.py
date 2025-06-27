@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS metadata (
     id INTEGER PRIMARY KEY DEFAULT 1,
     -- Заменили project_path на repo_url
     repo_url TEXT,
+    repo_branch TEXT,
     model_name TEXT,
     max_output_tokens INTEGER,
     extensions TEXT,
@@ -102,6 +103,13 @@ def _update_db_schema(conn: sqlite3.Connection):
         logger.info("Схема обновлена: metadata.project_path -> repo_url")
     except sqlite3.OperationalError:
         pass # Колонка уже переименована или ее не было
+
+    try:
+        # Для добавления repo_branch
+        conn.execute("ALTER TABLE metadata ADD COLUMN repo_branch TEXT;")
+        logger.info("Схема обновлена: добавлена колонка metadata.repo_branch")
+    except sqlite3.OperationalError:
+        pass # Колонка уже существует
         
     try:
         # Для добавления excluded_from_api
@@ -197,8 +205,8 @@ def save_session_data(
                 # Сохранение метаданных
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO metadata (id, repo_url, model_name, max_output_tokens, extensions, instructions, created_at, last_saved_at)
-                    VALUES (1, :repo_url, :model_name, :max_output_tokens, :extensions, :instructions, :created_at, :last_saved_at)
+                    INSERT OR REPLACE INTO metadata (id, repo_url, repo_branch, model_name, max_output_tokens, extensions, instructions, created_at, last_saved_at)
+                    VALUES (1, :repo_url, :repo_branch, :model_name, :max_output_tokens, :extensions, :instructions, :created_at, :last_saved_at)
                     """,
                     metadata_dict,
                 )

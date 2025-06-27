@@ -120,13 +120,22 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
 
-        # --- Блок URL Репозитория и Анализа ---
+        # --- Блок URL Репозитория и Ветки ---
         repo_layout = QHBoxLayout()
-        repo_url_label = QLabel("URL Репозитория GitHub:")
+        repo_url_label = QLabel("URL Репозитория:")
         self.repo_url_lineedit = QLineEdit()
         self.repo_url_lineedit.setPlaceholderText("https://github.com/user/repository")
+        
+        branch_label = QLabel("Ветка:")
+        self.branch_combobox = QComboBox()
+        self.branch_combobox.setToolTip("Выберите ветку для анализа")
+        self.branch_combobox.setEnabled(False) # Активируется после загрузки веток
+        self.branch_combobox.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+
         repo_layout.addWidget(repo_url_label)
-        repo_layout.addWidget(self.repo_url_lineedit, 1)
+        repo_layout.addWidget(self.repo_url_lineedit, 3) # Даем больше места полю URL
+        repo_layout.addWidget(branch_label)
+        repo_layout.addWidget(self.branch_combobox, 1) # Даем меньше места комбобоксу
         main_layout.addLayout(repo_layout)
 
         analysis_layout = QHBoxLayout()
@@ -303,7 +312,12 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self):
         # Команды от пользователя
-        self.repo_url_lineedit.textChanged.connect(self.view_model.updateRepoUrl)
+        # Изменяем textChanged на editingFinished, чтобы сигнал посылался один раз
+        self.repo_url_lineedit.editingFinished.connect(
+            lambda: self.view_model.updateRepoUrl(self.repo_url_lineedit.text())
+        )
+        self.branch_combobox.currentTextChanged.connect(self.view_model.updateSelectedBranch)
+
         self.api_key_save_button.clicked.connect(lambda: self.view_model.saveGeminiApiKey(self.api_key_lineedit.text()))
         self.github_token_save_button.clicked.connect(lambda: self.view_model.saveGithubToken(self.github_token_lineedit.text()))
         self.analyze_repo_button.clicked.connect(self.view_model.startAnalysis)
@@ -357,6 +371,12 @@ class MainWindow(QMainWindow):
         self.view_model.showFileDialog.connect(self._show_file_dialog)
         self.view_model.showMessageDialog.connect(self._show_message_dialog)
         self.view_model.resetUiForNewSession.connect(self._update_all_states_from_vm)
+
+        # Сигналы для обновления данных репозитория
+        self.view_model.repoUrlChanged.connect(self._update_repo_url_field)
+        self.view_model.selectedBranchChanged.connect(self._update_selected_branch)
+        self.view_model.availableBranchesChanged.connect(self._populate_branch_combobox)
+
         # Сигналы для окна саммари
         self.view_summaries_button.clicked.connect(self._show_summaries_window)
         
@@ -433,7 +453,9 @@ class MainWindow(QMainWindow):
     
     @Slot()
     def _update_settings_fields(self):
-        self.repo_url_lineedit.setText(self.view_model.repoUrl)
+        # Обновление URL и веток теперь обрабатывается отдельными слотами
+        # self._update_repo_url_field()
+        # self._populate_branch_combobox(self.view_model.availableBranches)
         self.model_name_combobox.setCurrentText(self.view_model.modelName)
         self.max_tokens_spinbox.setValue(self.view_model.maxTokens)
         if self.instructions_textedit.toPlainText() != self.view_model.instructionsText:
@@ -494,6 +516,33 @@ class MainWindow(QMainWindow):
     @Slot()
     def _clear_temporary_status_message(self):
         self.statusBar().clearMessage()
+
+    @Slot()
+    def _update_repo_url_field(self):
+        """Обновляет текст в поле URL, если он изменился в ViewModel."""
+        if self.repo_url_lineedit.text() != self.view_model.repoUrl:
+            self.repo_url_lineedit.setText(self.view_model.repoUrl)
+
+    @Slot(list)
+    def _populate_branch_combobox(self, branches: list):
+        """Заполняет выпадающий список ветками."""
+        self.branch_combobox.blockSignals(True)
+        self.branch_combobox.clear()
+        if branches:
+            self.branch_combobox.addItems(branches)
+            self.branch_combobox.setEnabled(True)
+        else:
+            self.branch_combobox.setEnabled(False)
+        self.branch_combobox.blockSignals(False)
+        # Устанавливаем текущую ветку после заполнения
+        self._update_selected_branch()
+        
+    @Slot()
+    def _update_selected_branch(self):
+        """Устанавливает выбранную ветку в выпадающем списке."""
+        self.branch_combobox.blockSignals(True)
+        self.branch_combobox.setCurrentText(self.view_model.selectedBranch)
+        self.branch_combobox.blockSignals(False)
 
     # --- Методы для работы с шаблонами ---
     def _load_instruction_templates(self):

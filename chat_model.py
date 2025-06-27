@@ -15,6 +15,7 @@ from google.api_core import exceptions as google_exceptions
 
 # Наши новые модули
 from github_manager import GitHubManager
+from github.Repository import Repository
 from summarizer import SummarizerWorker
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,6 @@ class GeminiWorker(QObject):
             if hasattr(response, "text") and response.text:
                 self.response_received.emit(response.text)
             else:
-                # Обработка блокировок и пустых ответов (упрощенная)
                 reason = "Неизвестно"
                 if response.prompt_feedback and response.prompt_feedback.block_reason:
                     reason = response.prompt_feedback.block_reason.name
@@ -88,6 +88,9 @@ class ChatModel(QObject):
     
     # Модели Gemini
     availableModelsChanged = Signal(list)
+
+    # Репозиторий и ветки
+    repoDataChanged = Signal(str, str, list) # url, selected_branch, available_branches
 
     # Анализ репозитория (Саммаризация)
     analysisStarted = Signal()
@@ -123,7 +126,10 @@ class ChatModel(QObject):
         self._github_token_loaded: bool = False
 
         # --- Состояние сессии ---
+        self._repo_object: Optional[Repository] = None
         self._repo_url: Optional[str] = None
+        self._repo_branch: Optional[str] = None
+        self._available_branches: List[str] = []
         self._chat_history: List[Dict[str, Any]] = []
         self._file_summaries: Dict[str, str] = {} # {file_path: summary}
         self._current_session_filepath: Optional[str] = None
@@ -229,7 +235,6 @@ class ChatModel(QObject):
         logger.info("Запрос списка доступных моделей Gemini...")
         try:
             models = genai.list_models()
-            # Фильтруем модели, оставляя те, что поддерживают генерацию контента
             self._available_models = sorted([
                 m.name.replace("models/", "") for m in models 
                 if 'generateContent' in m.supported_generation_methods
@@ -242,8 +247,8 @@ class ChatModel(QObject):
 
     # --- Анализ репозитория (Саммаризация) ---
     def start_repository_analysis(self):
-        if not self._github_manager or not self._repo_url:
-            self.analysisError.emit("Токен GitHub или URL репозитория не заданы.")
+        if not self._github_manager or not self._repo_object or not self._repo_branch:
+            self.analysisError.emit("Репозиторий или ветка не выбраны.")
             return
         if not self._gemini_model:
             self.analysisError.emit("Модель Gemini не инициализирована. Проверьте ключ API.")
@@ -252,24 +257,23 @@ class ChatModel(QObject):
             self.statusMessage.emit("Анализ уже запущен.", 3000)
             return
 
-        repo = self._github_manager.get_repo(self._repo_url)
-        if not repo:
-            self.analysisError.emit(f"Не удалось получить доступ к репозиторию: {self._repo_url}")
-            return
-
-        files_to_process, skipped = self._github_manager.get_repo_file_tree(repo, self._extensions)
+        files_to_process, skipped = self._github_manager.get_repo_file_tree(
+            self._repo_object, self._repo_branch, self._extensions
+        )
         if not files_to_process:
-            self.analysisError.emit("В репозитории не найдено файлов с указанными расширениями.")
+            self.analysisError.emit("В этой ветке не найдено файлов с указанными расширениями.")
             return
 
-        self._file_summaries = {} # Очищаем старые саммари перед новым анализом
+        self._file_summaries = {}
+        self.fileSummariesChanged.emit(self._file_summaries)
         self._mark_dirty()
         self.analysisStarted.emit()
-        self.statusMessage.emit(f"Начат анализ {len(files_to_process)} файлов...", 0)
+        self.statusMessage.emit(f"Начат анализ {len(files_to_process)} файлов в ветке '{self._repo_branch}'...", 0)
 
         self._summarizer_worker = SummarizerWorker(
             github_manager=self._github_manager,
-            repo=repo,
+            repo=self._repo_object,
+            branch_name=self._repo_branch, # Передаем ветку в воркер
             files_to_summarize=files_to_process,
             gemini_api_key=self._gemini_api_key,
             model_name=self._model_name
@@ -293,7 +297,6 @@ class ChatModel(QObject):
 
     @Slot(int, int)
     def _on_analysis_progress(self, processed: int, total: int):
-        # file_path может быть пустым, если мы не хотим его показывать
         self.analysisProgressUpdated.emit(processed, total, "") 
         self.statusMessage.emit(f"Анализ... {processed}/{total}", 0)
 
@@ -305,7 +308,6 @@ class ChatModel(QObject):
 
     # --- RAG и основной запрос к API ---
     def send_request_to_api(self, user_input: str):
-        # 1. Проверки
         if not self._is_ready_for_request():
             return
         
@@ -314,9 +316,8 @@ class ChatModel(QObject):
             self.statusMessage.emit("Введите ваш запрос.", 3000); return
             
         self.apiRequestStarted.emit()
-        self.add_user_message(user_input_stripped) # Это добавит сообщение в историю
+        self.add_user_message(user_input_stripped)
 
-        # --- Этап 1: Retrieval (Поиск релевантных файлов) ---
         self.apiIntermediateStep.emit("Этап 1: Поиск релевантных файлов по саммари...")
         
         relevant_files_content = ""
@@ -358,19 +359,15 @@ class ChatModel(QObject):
         else:
              self.apiIntermediateStep.emit("Саммари не найдены. Ответ будет основан только на истории чата.")
 
-        # --- Этап 2: Augmentation & Generation ---
-        # Передаем управление сборщику промпта, который вернет готовые части и обработает лимиты
         final_prompt_parts = self._build_final_prompt(relevant_files_content)
         
         if not final_prompt_parts:
-            # Это может случиться, если даже базовый промпт не влез в лимит
             self.apiErrorOccurred.emit("Ошибка: Не удалось сформировать запрос. Слишком большой объем данных даже после усечения.")
             self.apiRequestFinished.emit()
             return
 
         logger.info("Отправка финального запроса к API...")
 
-        # Запускаем воркер для генерации финального ответа
         self._gemini_worker = GeminiWorker(
             model=self._gemini_model,
             prompt_parts=final_prompt_parts,
@@ -393,7 +390,6 @@ class ChatModel(QObject):
         self._current_request_thread = thread
         
     def _is_ready_for_request(self) -> bool:
-        # Правильная проверка: проверяем, запущен ли ПОТОК, а не воркер
         if self._current_request_thread and self._current_request_thread.isRunning():
             self.statusMessage.emit("Дождитесь завершения предыдущего запроса.", 3000); return False
         if not self._gemini_api_key_loaded:
@@ -409,11 +405,11 @@ class ChatModel(QObject):
     def _build_final_context(self, file_paths: List[str]) -> str:
         """Собирает полное содержимое релевантных файлов в единый контекст."""
         context_parts = []
-        repo = self._github_manager.get_repo(self._repo_url)
-        if not repo: return "Ошибка: не удалось получить доступ к репозиторию для сборки контекста."
+        if not self._repo_object or not self._repo_branch:
+             return "Ошибка: не удалось получить доступ к репозиторию для сборки контекста."
 
         for path in file_paths:
-            content = self._github_manager.get_file_content(repo, path)
+            content = self._github_manager.get_file_content(self._repo_object, path, self._repo_branch)
             if content is not None:
                 context_parts.append(f"--- Файл: {path} ---\n{content}\n" + "-" * 20 + "\n")
             else:
@@ -421,25 +417,14 @@ class ChatModel(QObject):
         return "".join(context_parts)
 
     def _build_final_prompt(self, context_str: str) -> List[Dict[str, Any]]:
-        """
-        Собирает финальный промпт для генерации ответа, управляя лимитом токенов.
-        Приоритеты:
-        1. Системные инструкции и последнее сообщение пользователя.
-        2. Контекст из релевантных файлов.
-        3. История чата (от новых к старым).
-        """
         if not self._gemini_model: return []
 
-        # --- Вспомогательная функция для очистки сообщений ---
         def clean_message(msg: Dict[str, Any]) -> Dict[str, Any]:
-            """Убирает нестандартные ключи (например, 'excluded') перед отправкой в API."""
             return {"role": msg["role"], "parts": msg["parts"]}
 
-        # Определяем "бюджет" токенов для промпта, оставляя место для ответа
         prompt_token_budget = CONTEXT_WINDOW_LIMIT - self._max_output_tokens
         current_tokens = 0
         
-        # --- 1. Обязательные части: инструкции и последнее сообщение ---
         instructions_part = []
         if self._instructions:
             instructions_part.extend([
@@ -450,7 +435,6 @@ class ChatModel(QObject):
         history_to_consider = self._chat_history[:-1] 
         last_user_message = self._chat_history[-1]
         
-        # Очищаем обязательные сообщения перед подсчетом токенов
         cleaned_last_user_message = clean_message(last_user_message)
 
         try:
@@ -463,7 +447,6 @@ class ChatModel(QObject):
                 self.apiErrorOccurred.emit(f"Ошибка: Инструкции и последний вопрос уже превышают лимит токенов ({current_tokens}).")
                 return []
 
-        # --- 2. Добавляем контекст из файлов, если есть место ---
         context_part = []
         if context_str:
             context_wrapper = [
@@ -482,7 +465,6 @@ class ChatModel(QObject):
             except Exception as e:
                 logger.error(f"Ошибка подсчета токенов для контекста: {e}", exc_info=True)
 
-        # --- 3. Добавляем историю чата, пока есть место ---
         history_part = []
         for message in reversed(history_to_consider):
             if message.get("excluded", False):
@@ -492,7 +474,7 @@ class ChatModel(QObject):
             try:
                 message_tokens = self._gemini_model.count_tokens([cleaned_message]).total_tokens
                 if current_tokens + message_tokens <= prompt_token_budget:
-                    history_part.insert(0, cleaned_message) # Вставляем в начало очищенное сообщение
+                    history_part.insert(0, cleaned_message)
                     current_tokens += message_tokens
                 else:
                     logger.info(f"История чата усечена. Добавлено {len(history_part)} из {len(history_to_consider)} сообщений.")
@@ -501,7 +483,6 @@ class ChatModel(QObject):
                 logger.error(f"Ошибка подсчета токенов для сообщения истории: {e}", exc_info=True)
                 break
 
-        # --- Сборка финального промпта ---
         final_prompt_parts = []
         final_prompt_parts.extend(instructions_part)
         final_prompt_parts.extend(context_part)
@@ -515,37 +496,31 @@ class ChatModel(QObject):
     
     @Slot(str)
     def _handle_final_api_response(self, response_text: str):
-        """Обрабатывает успешный финальный ответ от API."""
         logger.info("Получен финальный ответ от API.")
         self.add_model_response(response_text)
         self.apiResponseReceived.emit(response_text)
 
     @Slot(str)
     def _handle_final_api_error(self, error_message: str):
-        """Обрабатывает ошибку от воркера."""
         logger.error(f"Получена ошибка от GeminiWorker: {error_message}")
         self.apiErrorOccurred.emit(error_message)
 
     @Slot()
     def _handle_worker_finished(self):
-        """Срабатывает по завершению работы воркера (успешно или с ошибкой)."""
         logger.info("GeminiWorker завершил работу, отправка apiRequestFinished.")
         self.apiRequestFinished.emit()
 
     @Slot()
     def _cleanup_request_thread(self):
-        """Безопасно очищает ссылки на воркер и поток ПОСЛЕ их завершения."""
         logger.info("Очистка ресурсов потока GeminiWorker.")
         self._gemini_worker = None
         self._current_request_thread = None
 
     def _update_token_count(self):
-        """Подсчитывает токены в текущем промпте и испускает сигнал."""
         if not self._gemini_model:
             self.tokenCountUpdated.emit(0, self._token_limit_for_display)
             return
 
-        # Собираем части промпта, которые идут в модель (без RAG-контекста)
         prompt_parts_for_counting: List[Dict[str, Any]] = []
         if self._instructions:
             prompt_parts_for_counting.extend([
@@ -557,7 +532,6 @@ class ChatModel(QObject):
             if not message.get("excluded", False):
                 prompt_parts_for_counting.append({"role": message["role"], "parts": message["parts"]})
 
-        # Выполняем подсчет
         try:
             if prompt_parts_for_counting:
                 result = self._gemini_model.count_tokens(prompt_parts_for_counting)
@@ -574,19 +548,61 @@ class ChatModel(QObject):
 
     # --- Управление состоянием (геттеры/сеттеры) ---
     def set_repo_url(self, url: str):
-        if url != self._repo_url:
-            self._repo_url = url
-            self._file_summaries = {} # Сброс саммари при смене репозитория
-            self._mark_dirty()
+        if not url or url == self._repo_url:
+            return
+
+        if not self._github_manager:
+            self.statusMessage.emit("GitHub менеджер не инициализирован.", 5000)
+            return
+
+        repo_data = self._github_manager.get_repo(url)
+        if not repo_data:
+            self.statusMessage.emit(f"Не удалось получить доступ к репозиторию.", 5000)
+            self._repo_object = None
+            self._repo_url = url # Сохраняем даже невалидный, чтобы отобразить в UI
+            self._repo_branch = None
+            self._available_branches = []
+            self.repoDataChanged.emit(url, "", [])
+            return
+
+        self._repo_object, branch_from_url = repo_data
+        self._repo_url = self._repo_object.html_url # Сохраняем "чистый" URL
+        
+        self.statusMessage.emit("Загрузка списка веток...", 0)
+        self._available_branches = self._github_manager.get_available_branches(self._repo_object)
+        
+        if branch_from_url and branch_from_url in self._available_branches:
+            self._repo_branch = branch_from_url
+        else:
+            self._repo_branch = self._repo_object.default_branch
+
+        self._file_summaries = {}
+        self.fileSummariesChanged.emit(self._file_summaries)
+        self._mark_dirty()
+        self.repoDataChanged.emit(self._repo_url, self._repo_branch, self._available_branches)
+        self.statusMessage.emit(f"Репозиторий '{self._repo_object.full_name}' загружен.", 5000)
+
+    def set_repo_branch(self, branch_name: str):
+        if not branch_name or branch_name == self._repo_branch:
+            return
+
+        logger.info(f"Смена ветки на '{branch_name}'")
+        self._repo_branch = branch_name
+        self._file_summaries = {}
+        self.fileSummariesChanged.emit(self._file_summaries)
+        self._mark_dirty()
+        self.repoDataChanged.emit(self._repo_url, self._repo_branch, self._available_branches)
+        self.statusMessage.emit(f"Выбрана ветка: {branch_name}. Требуется повторный анализ.", 0)
+
     def get_repo_url(self) -> Optional[str]: return self._repo_url
+    def get_selected_branch(self) -> Optional[str]: return self._repo_branch
+    def get_available_branches(self) -> List[str]: return self._available_branches
     def get_available_models(self) -> List[str]: return self._available_models
     def set_model_name(self, name: str):
-        # Убедимся, что имя не пустое и действительно изменилось
         if name and name != self._model_name:
             logger.info(f"Смена модели с '{self._model_name}' на '{name}'")
             self._model_name = name
             self._mark_dirty()
-            # Самое главное: пересоздаем объект модели с новым именем
             self._initialize_gemini()
             self._update_token_count()
     def get_model_name(self) -> str: return self._model_name
@@ -601,7 +617,6 @@ class ChatModel(QObject):
         self._update_token_count()
     def get_instructions(self) -> str: return self._instructions
     
-    # --- Управление историей чата (аналогично старой версии) ---
     def get_chat_history(self) -> List[Dict[str, Any]]: return self._chat_history[:]
     def add_user_message(self, text: str):
         if not text: return
@@ -624,16 +639,21 @@ class ChatModel(QObject):
     # --- Управление Сессиями (обновлено) ---
     def new_session(self):
         self._repo_url = None
+        self._repo_object = None
+        self._repo_branch = None
+        self._available_branches = []
         self._chat_history = []
         self._file_summaries = {}
-        self.fileSummariesChanged.emit(self._file_summaries)
         self._current_session_filepath = None
         self._extensions = (".py", ".txt", ".md", ".json", ".html", ".css", ".js", ".yaml", ".yml")
         self._model_name = self._available_models[0] if self._available_models else "gemini-1.5-flash-latest"
         self._max_output_tokens = 65536
         self._instructions = ""
         self._is_dirty = False
-        self.sessionLoaded.emit() # Чтобы UI обновился
+        
+        self.sessionLoaded.emit()
+        self.fileSummariesChanged.emit(self._file_summaries)
+        self.repoDataChanged.emit("", "", [])
         self.statusMessage.emit("Новая сессия создана.", 3000)
         self._update_token_count()
 
@@ -642,7 +662,7 @@ class ChatModel(QObject):
         loaded_data = db_manager.load_session_data(filepath)
         if loaded_data:
             meta, msgs, summaries = loaded_data
-            self._repo_url = meta.get("repo_url")
+            
             self._chat_history = msgs
             self._file_summaries = summaries
             self._model_name = meta.get("model_name", self._available_models[0] if self._available_models else "gemini-1.5-flash-latest")
@@ -650,10 +670,19 @@ class ChatModel(QObject):
             ext_str = meta.get("extensions", ".py .txt")
             self._extensions = tuple(p.strip() for p in ext_str.split())
             self._instructions = meta.get("instructions", "")
+            
             self._current_session_filepath = filepath
             self._is_dirty = False
-            self.fileSummariesChanged.emit(self._file_summaries)
+            
+            repo_url_from_session = meta.get("repo_url")
+            if repo_url_from_session:
+                self.set_repo_url(repo_url_from_session)
+                branch_from_session = meta.get("repo_branch")
+                if branch_from_session and branch_from_session in self._available_branches:
+                    self.set_repo_branch(branch_from_session)
+
             self.sessionLoaded.emit()
+            self.fileSummariesChanged.emit(self._file_summaries)
             self.statusMessage.emit(f"Сессия '{os.path.basename(filepath)}' загружена.", 5000)
             self._update_token_count()
         else:
@@ -664,7 +693,8 @@ class ChatModel(QObject):
         if not save_path: return False, None
         
         metadata = {
-            "repo_url": self._repo_url, 
+            "repo_url": self._repo_url,
+            "repo_branch": self._repo_branch,
             "model_name": self._model_name, 
             "max_output_tokens": self._max_output_tokens,
             "extensions": " ".join(self._extensions), 

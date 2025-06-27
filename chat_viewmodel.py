@@ -37,6 +37,8 @@ class ChatViewModel(QObject):
     # Поля настроек
     repoUrlChanged = Signal()
     modelNameChanged = Signal()
+    selectedBranchChanged = Signal()
+    availableBranchesChanged = Signal(list)
     availableModelsChanged = Signal(list)
     maxTokensChanged = Signal()
     instructionsTextChanged = Signal()
@@ -91,6 +93,11 @@ class ChatViewModel(QObject):
 
         # Состояние поиска
         self._search_query: Optional[str] = None
+
+        # Состояние репозитория
+        self._repo_url: str = ""
+        self._selected_branch: str = ""
+        self._available_branches: List[str] = []
         
         # --- Подключение к сигналам Модели ---
         self._connect_model_signals()
@@ -103,6 +110,7 @@ class ChatViewModel(QObject):
         self._model.geminiApiKeyStatusChanged.connect(self._on_gemini_api_key_status_changed)
         self._model.githubTokenStatusChanged.connect(self._on_github_token_status_changed)
         self._model.availableModelsChanged.connect(self.availableModelsChanged)
+        self._model.repoDataChanged.connect(self._on_repo_data_changed)
         
         # Анализ репозитория
         self._model.analysisStarted.connect(self._on_analysis_started)
@@ -142,7 +150,13 @@ class ChatViewModel(QObject):
                 else "<font color='red'>Токен GitHub: Не найден!</font>")
     
     @Property(str, notify=repoUrlChanged)
-    def repoUrl(self) -> str: return self._model.get_repo_url() or ""
+    def repoUrl(self) -> str: return self._repo_url
+
+    @Property(str, notify=selectedBranchChanged)
+    def selectedBranch(self) -> str: return self._selected_branch
+
+    @Property(list, notify=availableBranchesChanged)
+    def availableBranches(self) -> List[str]: return self._available_branches
 
     @Property(str, notify=modelNameChanged)
     def modelName(self) -> str: return self._model.get_model_name()
@@ -248,10 +262,15 @@ class ChatViewModel(QObject):
     # Обновление настроек
     @Slot(str)
     def updateRepoUrl(self, url: str):
+        # Этот метод теперь просто передает команду в модель.
+        # Обновление UI произойдет по сигналу _on_repo_data_changed.
         self._model.set_repo_url(url.strip())
-        self.repoUrlChanged.emit() # Уведомляем UI, что свойство изменилось
-        # И самое главное - принудительно обновляем состояние кнопок
-        self._update_all_button_states()
+
+    @Slot(str)
+    def updateSelectedBranch(self, branch: str):
+        # Аналогично, просто передаем команду в модель.
+        if branch:
+            self._model.set_repo_branch(branch)
     @Slot(str)
     def updateModelName(self, name: str): self._model.set_model_name(name)
     @Slot(int)
@@ -306,6 +325,18 @@ class ChatViewModel(QObject):
     def toggleApiExclusion(self, index: int): self._model.toggle_api_exclusion(index)
 
     # --- Слоты, реагирующие на сигналы Модели ---
+
+    @Slot(str, str, list)
+    def _on_repo_data_changed(self, url: str, branch: str, branches: List[str]):
+        """Обновляет состояние ViewModel при изменении данных репозитория в модели."""
+        self._repo_url = url
+        self._selected_branch = branch
+        self._available_branches = branches
+        
+        self.repoUrlChanged.emit()
+        self.selectedBranchChanged.emit()
+        self.availableBranchesChanged.emit(branches)
+        self._update_all_button_states()
     
     @Slot(bool, str)
     def _on_gemini_api_key_status_changed(self, loaded: bool, status_message: str):
@@ -381,7 +412,7 @@ class ChatViewModel(QObject):
     @Slot()
     def _on_session_loaded(self):
         logger.info("--- ViewModel: Загрузка/обновление состояния из Модели ---")
-        self.repoUrlChanged.emit()
+        # self.repoUrlChanged.emit()
         self.modelNameChanged.emit()
         self.maxTokensChanged.emit()
         self.instructionsTextChanged.emit()
