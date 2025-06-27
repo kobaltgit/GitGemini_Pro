@@ -100,6 +100,7 @@ class ChatModel(QObject):
     sessionStateChanged = Signal(str, bool) # (filepath, is_dirty)
     sessionLoaded = Signal()
     sessionError = Signal(str)
+    fileSummariesChanged = Signal(dict) # (summaries_dict)
 
     # Взаимодействие с API
     apiRequestStarted = Signal()
@@ -288,6 +289,7 @@ class ChatModel(QObject):
     def _on_file_summarized(self, file_path: str, summary: str):
         self._file_summaries[file_path] = summary
         self._mark_dirty()
+        self.fileSummariesChanged.emit(self._file_summaries)
 
     @Slot(int, int)
     def _on_analysis_progress(self, processed: int, total: int):
@@ -624,6 +626,7 @@ class ChatModel(QObject):
         self._repo_url = None
         self._chat_history = []
         self._file_summaries = {}
+        self.fileSummariesChanged.emit(self._file_summaries)
         self._current_session_filepath = None
         self._extensions = (".py", ".txt", ".md", ".json", ".html", ".css", ".js", ".yaml", ".yml")
         self._model_name = self._available_models[0] if self._available_models else "gemini-1.5-flash-latest"
@@ -649,6 +652,7 @@ class ChatModel(QObject):
             self._instructions = meta.get("instructions", "")
             self._current_session_filepath = filepath
             self._is_dirty = False
+            self.fileSummariesChanged.emit(self._file_summaries)
             self.sessionLoaded.emit()
             self.statusMessage.emit(f"Сессия '{os.path.basename(filepath)}' загружена.", 5000)
             self._update_token_count()

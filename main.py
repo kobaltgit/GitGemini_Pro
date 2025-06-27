@@ -14,12 +14,12 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QLabel, QLineEdit, QFileDialog,
     QSizePolicy, QSpinBox, QMessageBox, QStatusBar, QGroupBox,
-    QCheckBox, QDialog, QComboBox, QInputDialog
+    QCheckBox, QDialog, QComboBox, QInputDialog, QStyle
 )
 from PySide6.QtCore import (
     Qt, Slot, QUrl, QTimer, QCoreApplication, QFileInfo
 )
-from PySide6.QtGui import QAction, QKeySequence, QIcon
+from PySide6.QtGui import QAction, QKeySequence, QIcon, QFont
 
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -32,6 +32,7 @@ except ImportError:
 from chat_model import ChatModel
 from chat_view import ChatView
 from chat_viewmodel import ChatViewModel
+from summaries_window import SummariesWindow
 import db_manager
 
 try:
@@ -76,6 +77,8 @@ class MainWindow(QMainWindow):
             raise TypeError("ViewModel required")
         self.view_model = view_model
         self.logger = logging.getLogger(__name__)
+
+        self.summaries_window: Optional[SummariesWindow] = None
 
         self._templates_file_path = self._get_resource_path(TEMPLATES_FILENAME)
         self.instruction_templates: Dict[str, str] = {}
@@ -129,8 +132,20 @@ class MainWindow(QMainWindow):
         analysis_layout = QHBoxLayout()
         self.analyze_repo_button = QPushButton("Анализировать репозиторий")
         self.cancel_analysis_button = QPushButton("Отмена анализа")
+
+        self.view_summaries_button = QPushButton("👁️")
+        self.view_summaries_button.setToolTip("Просмотреть проанализированные файлы и их саммари")
+        self.view_summaries_button.setFixedSize(32, 32)
+        font = self.view_summaries_button.font()
+        font.setPointSize(14)
+        self.view_summaries_button.setFont(font)
+        self.view_summaries_button.setStyleSheet("QPushButton { border: 1px solid #555; border-radius: 4px; } QPushButton:hover { background-color: #444; }")
+
         analysis_layout.addWidget(self.analyze_repo_button, 1)
         analysis_layout.addWidget(self.cancel_analysis_button, 1)
+        analysis_layout.addSpacing(20)
+        analysis_layout.addWidget(self.view_summaries_button)
+        analysis_layout.addStretch(0)
         main_layout.addLayout(analysis_layout)
 
         # --- Блок настроек ---
@@ -342,6 +357,31 @@ class MainWindow(QMainWindow):
         self.view_model.showFileDialog.connect(self._show_file_dialog)
         self.view_model.showMessageDialog.connect(self._show_message_dialog)
         self.view_model.resetUiForNewSession.connect(self._update_all_states_from_vm)
+        # Сигналы для окна саммари
+        self.view_summaries_button.clicked.connect(self._show_summaries_window)
+        
+    @Slot()
+    def _show_summaries_window(self):
+        """Создает (если нужно) и показывает окно с саммари."""
+        if self.summaries_window is None:
+            self.logger.info("Первый запуск: создание окна SummariesWindow.")
+            self.summaries_window = SummariesWindow(self)
+            # Подключаем сигналы
+            self.view_model.fileSummariesUpdated.connect(self.summaries_window.update_summaries)
+            self.summaries_window.windowClosed.connect(self._on_summaries_window_closed)
+            # Первоначальное наполнение данными
+            self.summaries_window.update_summaries(self.view_model._model._file_summaries)
+        
+        self.logger.debug("Отображение окна SummariesWindow.")
+        self.summaries_window.show()
+        self.summaries_window.activateWindow()
+
+    @Slot()
+    def _on_summaries_window_closed(self):
+        """Слот, который вызывается, когда пользователь закрывает окно саммари."""
+        self.logger.debug("Окно саммари было закрыто (скрыто).")
+        # Здесь можно добавить логику, если нужно, например, изменить состояние кнопки
+        pass        
 
     def eventFilter(self, obj, event):
         if obj is self.input_textedit and event.type() == event.Type.KeyPress:
@@ -371,6 +411,7 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(self.view_model.canCancelRequest)
         self.analyze_repo_button.setEnabled(self.view_model.canAnalyze)
         self.cancel_analysis_button.setEnabled(self.view_model.canCancelAnalysis)
+        self.view_summaries_button.setEnabled(bool(self.view_model._model._file_summaries))
 
     @Slot()
     def _update_gemini_api_key_status(self):

@@ -55,6 +55,7 @@ class ChatViewModel(QObject):
     # Видимость виджетов
     settingsVisibilityChanged = Signal(bool)
     instructionsVisibilityChanged = Signal(bool)
+    fileSummariesUpdated = Signal(dict)
 
     # --- Сигналы для выполнения действий в View ---
     showFileDialog = Signal(str, str, str)
@@ -125,6 +126,7 @@ class ChatViewModel(QObject):
         # Общие
         self._model.statusMessage.connect(self.statusMessageChanged)
         self._model.tokenCountUpdated.connect(self._on_token_count_updated)
+        self._model.fileSummariesChanged.connect(self.fileSummariesUpdated)
 
     # --- Properties для биндинга в View ---
     @Property(str, notify=geminiApiKeyStatusTextChanged)
