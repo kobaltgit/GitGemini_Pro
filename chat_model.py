@@ -312,59 +312,60 @@ class ChatModel(QObject):
             self.statusMessage.emit("Введите ваш запрос.", 3000); return
             
         self.apiRequestStarted.emit()
-        self.add_user_message(user_input_stripped)
+        self.add_user_message(user_input_stripped) # Это добавит сообщение в историю
 
-        # 2. Этап 1: Retrieval (Поиск релевантных файлов)
+        # --- Этап 1: Retrieval (Поиск релевантных файлов) ---
         self.apiIntermediateStep.emit("Этап 1: Поиск релевантных файлов по саммари...")
         
-        summaries_str = "\n".join([f"- `{path}`: {summary}" for path, summary in self._file_summaries.items()])
-        retrieval_prompt = (
-            f"Проанализируй вопрос пользователя и список файлов с их описаниями.\n"
-            f"Выдай список только тех путей к файлам (каждый с новой строки), которые наиболее релевантны для ответа на вопрос. "
-            f"Если ни один файл не релевантен, верни пустой ответ.\n\n"
-            f"ВОПРОС ПОЛЬЗОВАТЕЛЯ:\n{user_input_stripped}\n\n"
-            f"ФАЙЛЫ И ИХ ОПИСАНИЯ:\n{summaries_str}"
-        )
+        relevant_files_content = ""
+        if self._file_summaries:
+            summaries_str = "\n".join([f"- `{path}`: {summary}" for path, summary in self._file_summaries.items()])
+            retrieval_prompt = (
+                f"Проанализируй вопрос пользователя и список файлов с их описаниями.\n"
+                f"Выдай список только тех путей к файлам (каждый с новой строки), которые наиболее релевантны для ответа на вопрос. "
+                f"Если ни один файл не релевантен, верни пустой ответ.\n\n"
+                f"ВОПРОС ПОЛЬЗОВАТЕЛЯ:\n{user_input_stripped}\n\n"
+                f"ФАЙЛЫ И ИХ ОПИСАНИЯ:\n{summaries_str}"
+            )
 
-        try:
-            retrieval_response = self._gemini_model.generate_content(retrieval_prompt)
-            retrieval_text = ""
             try:
-                # Безопасно пытаемся получить текст
-                retrieval_text = retrieval_response.text
-            except ValueError:
-                # Это происходит, когда модель возвращает пустой ответ (e.g., finish_reason=STOP)
-                logger.warning("Этап 1: Модель вернула пустой ответ. Считаем, что релевантных файлов не найдено.")
-                # retrieval_text остается пустой строкой, что корректно
+                retrieval_response = self._gemini_model.generate_content(retrieval_prompt)
+                retrieval_text = ""
+                try:
+                    retrieval_text = retrieval_response.text
+                except ValueError:
+                    logger.warning("Этап 1: Модель вернула пустой ответ, релевантных файлов не найдено.")
 
-            # Улучшенный парсинг и строгая валидация
-            unvalidated_files = [line.strip().replace("`", "") for line in retrieval_text.splitlines() if line.strip()]
-            
-            relevant_files = []
-            for file_path in unvalidated_files:
-                if file_path in self._file_summaries:
-                    relevant_files.append(file_path)
-                    logger.debug(f"Этап 1: Файл '{file_path}' прошел валидацию.")
+                unvalidated_files = [line.strip().replace("`", "") for line in retrieval_text.splitlines() if line.strip()]
+                
+                relevant_files = [fp for fp in unvalidated_files if fp in self._file_summaries]
+                logger.info(f"Этап 1: Найдено {len(relevant_files)} релевантных файлов: {relevant_files}")
+
+                if relevant_files:
+                    self.apiIntermediateStep.emit(f"Этап 2: Загрузка содержимого {len(relevant_files)} файлов...")
+                    relevant_files_content = self._build_final_context(relevant_files)
                 else:
-                    logger.warning(f"Этап 1: Модель вернула невалидный путь, который будет проигнорирован: '{file_path}'")
+                    self.apiIntermediateStep.emit("Релевантных файлов не найдено. Ответ будет основан на истории чата.")
+            
+            except Exception as e:
+                err_msg = f"Ошибка на этапе 1 (Retrieval): {e}"
+                logger.error(err_msg, exc_info=True)
+                self.apiErrorOccurred.emit(err_msg)
+                self.apiRequestFinished.emit()
+                return
+        else:
+             self.apiIntermediateStep.emit("Саммари не найдены. Ответ будет основан только на истории чата.")
 
-            if not relevant_files:
-                self.apiIntermediateStep.emit("Релевантных файлов не найдено. Ответ будет основан только на истории чата.")
-                final_context = "Контекст из файлов не был найден."
-            else:
-                self.apiIntermediateStep.emit(f"Этап 2: Загрузка содержимого {len(relevant_files)} релевантных файлов...")
-                final_context = self._build_final_context(relevant_files)
-
-        except Exception as e:
-            err_msg = f"Ошибка на этапе 1 (Retrieval): {e}"
-            logger.error(err_msg, exc_info=True)
-            self.apiErrorOccurred.emit(err_msg)
+        # --- Этап 2: Augmentation & Generation ---
+        # Передаем управление сборщику промпта, который вернет готовые части и обработает лимиты
+        final_prompt_parts = self._build_final_prompt(relevant_files_content)
+        
+        if not final_prompt_parts:
+            # Это может случиться, если даже базовый промпт не влез в лимит
+            self.apiErrorOccurred.emit("Ошибка: Не удалось сформировать запрос. Слишком большой объем данных даже после усечения.")
             self.apiRequestFinished.emit()
             return
-            
-        # 3. Этап 2: Augmentation & Generation (Обогащение и Генерация)
-        final_prompt_parts = self._build_final_prompt(final_context)
-        
+
         logger.info("Отправка финального запроса к API...")
 
         # Запускаем воркер для генерации финального ответа
@@ -377,11 +378,9 @@ class ChatModel(QObject):
         thread = QThread()
         self._gemini_worker.moveToThread(thread)
         
-        # Подключаем сигналы от воркера к слотам модели
         self._gemini_worker.response_received.connect(self._handle_final_api_response)
         self._gemini_worker.error_occurred.connect(self._handle_final_api_error)
         
-        # Жизненный цикл потока и воркера
         thread.started.connect(self._gemini_worker.run)
         self._gemini_worker.finished_work.connect(thread.quit)
         self._gemini_worker.finished_work.connect(self._handle_worker_finished)
@@ -389,8 +388,6 @@ class ChatModel(QObject):
         thread.finished.connect(self._cleanup_request_thread)
         
         thread.start()
-        
-        # Сохраняем ссылку на поток, чтобы он не был удален сборщиком мусора
         self._current_request_thread = thread
         
     def _is_ready_for_request(self) -> bool:
@@ -422,28 +419,97 @@ class ChatModel(QObject):
         return "".join(context_parts)
 
     def _build_final_prompt(self, context_str: str) -> List[Dict[str, Any]]:
-        """Собирает финальный промпт для генерации ответа."""
-        prompt_parts: List[Dict[str, Any]] = []
+        """
+        Собирает финальный промпт для генерации ответа, управляя лимитом токенов.
+        Приоритеты:
+        1. Системные инструкции и последнее сообщение пользователя.
+        2. Контекст из релевантных файлов.
+        3. История чата (от новых к старым).
+        """
+        if not self._gemini_model: return []
+
+        # --- Вспомогательная функция для очистки сообщений ---
+        def clean_message(msg: Dict[str, Any]) -> Dict[str, Any]:
+            """Убирает нестандартные ключи (например, 'excluded') перед отправкой в API."""
+            return {"role": msg["role"], "parts": msg["parts"]}
+
+        # Определяем "бюджет" токенов для промпта, оставляя место для ответа
+        prompt_token_budget = CONTEXT_WINDOW_LIMIT - self._max_output_tokens
+        current_tokens = 0
         
-        # 1. Системные инструкции
+        # --- 1. Обязательные части: инструкции и последнее сообщение ---
+        instructions_part = []
         if self._instructions:
-            prompt_parts.extend([
+            instructions_part.extend([
                 {"role": "user", "parts": [f"**Системные инструкции:**\n{self._instructions}"]},
                 {"role": "model", "parts": ["OK. Инструкции приняты."]}
             ])
+        
+        history_to_consider = self._chat_history[:-1] 
+        last_user_message = self._chat_history[-1]
+        
+        # Очищаем обязательные сообщения перед подсчетом токенов
+        cleaned_last_user_message = clean_message(last_user_message)
 
-        # 2. Контекст из файлов
-        prompt_parts.extend([
-            {"role": "user", "parts": [f"**Контекст из релевантных файлов проекта:**\n{context_str}"]},
-            {"role": "model", "parts": ["OK. Контекст проекта получен."]}
-        ])
+        try:
+            base_parts = instructions_part + [cleaned_last_user_message]
+            base_tokens = self._gemini_model.count_tokens(base_parts).total_tokens
+            current_tokens += base_tokens
+        except Exception as e:
+            logger.error(f"Ошибка подсчета токенов для базовых частей: {e}", exc_info=True)
+            if current_tokens > prompt_token_budget:
+                self.apiErrorOccurred.emit(f"Ошибка: Инструкции и последний вопрос уже превышают лимит токенов ({current_tokens}).")
+                return []
+
+        # --- 2. Добавляем контекст из файлов, если есть место ---
+        context_part = []
+        if context_str:
+            context_wrapper = [
+                {"role": "user", "parts": [f"**Контекст из релевантных файлов проекта:**\n{context_str}"]},
+                {"role": "model", "parts": ["OK. Контекст проекта получен."]}
+            ]
+            try:
+                context_tokens = self._gemini_model.count_tokens(context_wrapper).total_tokens
+                if current_tokens + context_tokens <= prompt_token_budget:
+                    context_part = context_wrapper
+                    current_tokens += context_tokens
+                    logger.info(f"Контекст из файлов ({context_tokens} токенов) полностью добавлен.")
+                else:
+                    logger.warning(f"Контекст файлов ({context_tokens} т.) не помещается. Будет проигнорирован.")
+                    self.apiIntermediateStep.emit("ПРЕДУПРЕЖДЕНИЕ: Контекст из файлов слишком большой и не будет включен в этот запрос.")
+            except Exception as e:
+                logger.error(f"Ошибка подсчета токенов для контекста: {e}", exc_info=True)
+
+        # --- 3. Добавляем историю чата, пока есть место ---
+        history_part = []
+        for message in reversed(history_to_consider):
+            if message.get("excluded", False):
+                continue
+
+            cleaned_message = clean_message(message)
+            try:
+                message_tokens = self._gemini_model.count_tokens([cleaned_message]).total_tokens
+                if current_tokens + message_tokens <= prompt_token_budget:
+                    history_part.insert(0, cleaned_message) # Вставляем в начало очищенное сообщение
+                    current_tokens += message_tokens
+                else:
+                    logger.info(f"История чата усечена. Добавлено {len(history_part)} из {len(history_to_consider)} сообщений.")
+                    break 
+            except Exception as e:
+                logger.error(f"Ошибка подсчета токенов для сообщения истории: {e}", exc_info=True)
+                break
+
+        # --- Сборка финального промпта ---
+        final_prompt_parts = []
+        final_prompt_parts.extend(instructions_part)
+        final_prompt_parts.extend(context_part)
+        final_prompt_parts.extend(history_part)
+        final_prompt_parts.append(cleaned_last_user_message)
+
+        logger.info(f"Финальный промпт собран. Токенов: {current_tokens} / {prompt_token_budget} (бюджет).")
+        self.tokenCountUpdated.emit(current_tokens, CONTEXT_WINDOW_LIMIT)
         
-        # 3. История чата (упрощенный вариант, без отбора по токенам)
-        for message in self._chat_history:
-            if not message.get("excluded", False):
-                prompt_parts.append({"role": message["role"], "parts": message["parts"]})
-        
-        return prompt_parts
+        return final_prompt_parts
     
     @Slot(str)
     def _handle_final_api_response(self, response_text: str):
