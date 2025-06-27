@@ -604,7 +604,7 @@ class ChatModel(QObject):
             self._model_name = name
             self._mark_dirty()
             self._initialize_gemini()
-            self._update_token_count()
+            # self._update_token_count()
     def get_model_name(self) -> str: return self._model_name
     def set_max_tokens(self, tokens: int):
         if tokens != self._max_output_tokens: self._max_output_tokens = tokens; self._mark_dirty()
