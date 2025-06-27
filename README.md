@@ -4,7 +4,7 @@
 
 GitGemini Pro позволяет вести диалог с языковой моделью, используя файлы вашего репозитория в качестве контекста. Вместо того чтобы передавать все файлы в модель, приложение использует двухэтапный RAG-подход (Retrieval-Augmented Generation) для предоставления более точных и релевантныx ответов, экономя при этом ресурсы API.
 
-<a href="https://ibb.co/KpRYhxtf"><img src="https://i.ibb.co/ycGDPFzZ/Screenshot-10.png" alt="Screenshot-10" border="0"></a>
+<a href="https://ibb.co/7xMmFfNL"><img src="https://i.ibb.co/zW9vwMHD/Screenshot-15.png" alt="Screenshot-15" border="0"></a>
 
 ## 🚀 Основные возможности
 
