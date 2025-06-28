@@ -8,12 +8,14 @@ import hashlib
 import os
 import numpy as np
 
+from PySide6.QtCore import QObject
+
 # ИМПОРТИРУЕМ НАШ НОВЫЙ МОДУЛЬ
 from embedding_model import ONNXEmbeddingModel
 
 logger = logging.getLogger(__name__)
 
-class VectorDBManager:
+class VectorDBManager(QObject):
     """
     Класс для управления локальной векторной базой данных ChromaDB.
     Инкапсулирует создание эмбеддингов, хранение и семантический поиск.
@@ -24,6 +26,7 @@ class VectorDBManager:
         """
         Инициализирует менеджер векторной БД и модель для создания эмбеддингов.
         """
+        super().__init__()
         self._db_path: Optional[str] = None
         self.client: Optional[chromadb.Client] = None
         # Создаем экземпляр нашей ONNX-модели
@@ -33,9 +36,10 @@ class VectorDBManager:
             # Если модель не смогла загрузиться, это критическая ошибка.
             # Мы не можем продолжать, поэтому логируем и снова выбрасываем исключение,
             # чтобы вышестоящий код мог его обработать.
-            logger.critical(f"Не удалось инициализировать VectorDBManager: {e}", exc_info=True)
-            raise e
-        logger.info("VectorDBManager успешно создан и модель эмбеддингов загружена.")
+            error_msg = self.tr("Не удалось инициализировать VectorDBManager: {0}").format(e)
+            logger.critical(error_msg, exc_info=True)
+            raise RuntimeError(error_msg)
+        logger.info(self.tr("VectorDBManager успешно создан и модель эмбеддингов загружена."))
 
 
     def set_db_path(self, path: str):
@@ -45,34 +49,31 @@ class VectorDBManager:
         if self._db_path == path and self.client:
             return
         
-        logger.info(f"Установка пути к векторной БД: {path}")
+        logger.info(self.tr("Установка пути к векторной БД: {0}").format(path))
         self._db_path = path
         try:
             # Убедимся, что директория существует
             os.makedirs(self._db_path, exist_ok=True)
             self.client = chromadb.PersistentClient(path=self._db_path)
-            logger.info(f"Клиент ChromaDB успешно инициализирован для пути: {self._db_path}")
+            logger.info(self.tr("Клиент ChromaDB успешно инициализирован для пути: {0}").format(self._db_path))
         except Exception as e:
-            logger.error(f"Не удалось инициализировать PersistentClient для ChromaDB по пути {path}: {e}", exc_info=True)
+            logger.error(self.tr("Не удалось инициализировать PersistentClient для ChromaDB по пути {0}: {1}").format(path, e), exc_info=True)
             self.client = None
 
 
     def create_or_get_collection(self, name: str) -> Optional[chromadb.Collection]:
         """
         Создает новую коллекцию в ChromaDB или получает доступ к существующей.
-        Теперь не передает embedding_function.
         """
         if not self.client:
-            logger.error("Клиент ChromaDB не инициализирован.")
+            logger.error(self.tr("Клиент ChromaDB не инициализирован."))
             return None
         try:
-            # Мы больше не передаем embedding_function, так как будем
-            # предоставлять эмбеддинги вручную.
             collection = self.client.get_or_create_collection(name=name)
-            logger.info(f"Успешный доступ к коллекции: '{name}'")
+            logger.info(self.tr("Успешный доступ к коллекции: '{0}'").format(name))
             return collection
         except Exception as e:
-            logger.error(f"Не удалось создать или получить коллекцию '{name}': {e}", exc_info=True)
+            logger.error(self.tr("Не удалось создать или получить коллекцию '{0}': {1}").format(name, e), exc_info=True)
             return None
 
     @staticmethod
@@ -91,52 +92,46 @@ class VectorDBManager:
         Добавляет пакет документов в коллекцию. Эмбеддинги генерируются здесь.
         """
         if not documents:
-            logger.warning("Попытка добавить пустой список документов. Операция пропущена.")
+            logger.warning(self.tr("Попытка добавить пустой список документов. Операция пропущена."))
             return
 
         ids = [self._generate_document_id(doc, meta) for doc, meta in zip(documents, metadatas)]
         
         try:
-            # --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ---
-            # 1. Генерируем эмбеддинги с помощью нашей ONNX-модели
-            logger.debug(f"Генерация {len(documents)} эмбеддингов для добавления в '{collection.name}'...")
+            logger.debug(self.tr("Генерация {0} эмбеддингов для добавления в '{1}'...").format(len(documents), collection.name))
             embeddings = self.embedding_model.encode(documents)
-            logger.debug("Эмбеддинги успешно сгенерированы.")
+            logger.debug(self.tr("Эмбеддинги успешно сгенерированы."))
             
-            # 2. Добавляем в коллекцию документы вместе с готовыми эмбеддингами
             collection.add(
-                embeddings=embeddings.tolist(), # ChromaDB ожидает list of lists
+                embeddings=embeddings.tolist(),
                 documents=documents,
                 metadatas=metadatas,
                 ids=ids
             )
-            logger.info(f"В коллекцию '{collection.name}' успешно добавлено {len(documents)} документов.")
+            logger.info(self.tr("В коллекцию '{0}' успешно добавлено {1} документов.").format(collection.name, len(documents)))
         except Exception as e:
-            logger.error(f"Ошибка при добавлении документов в коллекцию '{collection.name}': {e}", exc_info=True)
+            logger.error(self.tr("Ошибка при добавлении документов в коллекцию '{0}': {1}").format(collection.name, e), exc_info=True)
 
     def query(
         self,
         collection: chromadb.Collection,
         query_text: str,
         n_results: int = 15
-    ) -> List[Dict[str, Any]]: # Изменен тип возвращаемого значения, чтобы не возвращать None
+    ) -> List[Dict[str, Any]]:
         """
         Выполняет семантический поиск по коллекции.
         """
         if not query_text.strip():
-            logger.warning("Получен пустой запрос для поиска, возвращаем пустой результат.")
+            logger.warning(self.tr("Получен пустой запрос для поиска, возвращаем пустой результат."))
             return []
             
         try:
-            # --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ---
-            # 1. Генерируем эмбеддинг для текста запроса
-            logger.debug(f"Генерация эмбеддинга для запроса: '{query_text[:50]}...'")
+            logger.debug(self.tr("Генерация эмбеддинга для запроса: '{0}...'").format(query_text[:50]))
             query_embedding = self.embedding_model.encode([query_text])
             
-            # 2. Выполняем поиск, передавая готовый эмбеддинг
             results = collection.query(
                 query_embeddings=query_embedding.tolist(),
-                n_results=min(n_results, collection.count()) # Убедимся, что не запрашиваем больше, чем есть
+                n_results=min(n_results, collection.count())
             )
 
             formatted_results = []
@@ -148,25 +143,25 @@ class VectorDBManager:
                         'metadata': results['metadatas'][0][i],
                         'distance': results['distances'][0][i]
                     })
-            logger.info(f"Поиск по запросу '{query_text[:50]}...' вернул {len(formatted_results)} результатов.")
+            logger.info(self.tr("Поиск по запросу '{0}...' вернул {1} результатов.").format(query_text[:50], len(formatted_results)))
             return formatted_results
 
         except Exception as e:
-            logger.error(f"Ошибка при поиске в коллекции '{collection.name}': {e}", exc_info=True)
+            logger.error(self.tr("Ошибка при поиске в коллекции '{0}': {1}").format(collection.name, e), exc_info=True)
             return []
 
     def delete_collection(self, collection_name: str):
         """ Полностью удаляет коллекцию из базы данных. """
         if not self.client:
-            logger.error("Невозможно удалить коллекцию, клиент ChromaDB не инициализирован.")
+            logger.error(self.tr("Невозможно удалить коллекцию, клиент ChromaDB не инициализирован."))
             return
         try:
             self.client.delete_collection(name=collection_name)
-            logger.info(f"Старая коллекция '{collection_name}' успешно удалена перед новым анализом.")
+            logger.info(self.tr("Старая коллекция '{0}' успешно удалена перед новым анализом.").format(collection_name))
         except NotFoundError:
-            logger.warning(f"Коллекция '{collection_name}' не найдена для удаления, что нормально для первого анализа.")
+            logger.warning(self.tr("Коллекция '{0}' не найдена для удаления, что нормально для первого анализа.").format(collection_name))
         except Exception as e:
-            logger.error(f"Не удалось удалить коллекцию '{collection_name}': {e}", exc_info=True)
+            logger.error(self.tr("Не удалось удалить коллекцию '{0}': {1}").format(collection_name, e), exc_info=True)
             
     def get_collection_doc_count(self, collection: chromadb.Collection) -> int:
         """ Возвращает количество документов в коллекции. """
@@ -175,5 +170,5 @@ class VectorDBManager:
         try:
             return collection.count()
         except Exception as e:
-            logger.error(f"Не удалось получить количество документов для коллекции '{collection.name}': {e}")
+            logger.error(self.tr("Не удалось получить количество документов для коллекции '{0}': {1}").format(collection.name, e))
             return 0

@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, Optional, List, Any
 
-from PySide6.QtCore import QObject, Signal, QThread, Slot
+from PySide6.QtCore import QObject, Signal, QThread, Slot, QLocale
 
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
@@ -14,8 +14,8 @@ from github.Repository import Repository
 # Настраиваем логгер для этого модуля
 logger = logging.getLogger(__name__)
 
-# Промпт для создания саммари файла (без изменений)
-SUMMARIZATION_PROMPT_TEMPLATE = """
+# Промпт для создания саммари файла. Теперь в двух версиях.
+SUMMARIZATION_PROMPT_RU = """
 Проанализируй содержимое этого файла:
 
 --- НАЧАЛО ФАЙЛА: {file_path} ---
@@ -30,6 +30,23 @@ SUMMARIZATION_PROMPT_TEMPLATE = """
 
 Ответ должен быть только текстом саммари, без лишних фраз и вступлений.
 """
+
+SUMMARIZATION_PROMPT_EN = """
+Analyze the contents of this file:
+
+--- START OF FILE: {file_path} ---
+{file_content}
+--- END OF FILE ---
+
+Create a brief but comprehensive summary (2-4 sentences) for it.
+In the summary, be sure to reflect:
+1. The main purpose of the file (what it does, what it is responsible for).
+2. Key classes, functions, or components defined in it.
+3. Its main dependencies on other parts of the project, if they are evident from the code.
+
+The response should be only the summary text, without any extra phrases or introductions.
+"""
+
 
 # --- НОВЫЙ КЛАСС ДЛЯ РАЗБИЕНИЯ ТЕКСТА ---
 class SimpleTextSplitter:
@@ -64,14 +81,11 @@ class SimpleTextSplitter:
             new_chunks = []
             for chunk in chunks:
                 if len(chunk) > self.chunk_size:
-                    # Если разделитель не пустой, используем его
                     if sep:
                         splits = chunk.split(sep)
                     else:
-                        # Если разделитель пустой, просто режем по размеру
                         splits = [chunk[i:i + self.chunk_size] for i in range(0, len(chunk), self.chunk_size)]
                     
-                    # Объединяем мелкие фрагменты обратно в чанки нужного размера
                     merged_splits = self._merge_splits(splits, sep)
                     new_chunks.extend(merged_splits)
                 else:
@@ -87,14 +101,11 @@ class SimpleTextSplitter:
         current_doc = []
         total = 0
         for s in splits:
-            # Добавляем длину сплита и разделителя
             length = len(s) + (len(separator) if separator else 0)
             if total + length > self.chunk_size:
-                # Если добавление нового сплита превысит размер чанка
                 if total > 0:
                     docs.append(separator.join(current_doc))
                 
-                # Обработка перекрытия (overlap)
                 while total > self.chunk_overlap:
                     total -= len(current_doc[0]) + (len(separator) if separator else 0)
                     current_doc = current_doc[1:]
@@ -118,8 +129,8 @@ class SummarizerWorker(QThread):
     """
     # Сигналы
     progress_updated = Signal(int, int)
-    file_summarized = Signal(str, str) # (путь, текст саммари) - для UI
-    documents_for_db_ready = Signal(list, list) # (texts, metadatas) - для VectorDB
+    file_summarized = Signal(str, str)
+    documents_for_db_ready = Signal(list, list)
     error_occurred = Signal(str)
     finished = Signal()
 
@@ -127,7 +138,7 @@ class SummarizerWorker(QThread):
                  github_manager: GitHubManager,
                  repo: Repository,
                  branch_name: str,
-                 files_to_summarize: Dict[str, int], # {path: size}
+                 files_to_summarize: Dict[str, int],
                  gemini_api_key: str,
                  model_name: str,
                  parent: Optional[QObject] = None):
@@ -142,20 +153,27 @@ class SummarizerWorker(QThread):
         self.generative_model: Optional[genai.GenerativeModel] = None
         self.text_splitter = SimpleTextSplitter(chunk_size=1000, chunk_overlap=150)
 
+        # Выбираем шаблон промпта в зависимости от текущей локали
+        locale_lang = QLocale.system().name().split('_')[0]
+        if locale_lang == 'ru':
+            self.summarization_prompt_template = SUMMARIZATION_PROMPT_RU
+        else:
+            self.summarization_prompt_template = SUMMARIZATION_PROMPT_EN
+
     def cancel(self):
         """Запрашивает отмену операции."""
-        logger.info("Получен запрос на отмену анализа.")
+        logger.info(self.tr("Получен запрос на отмену анализа."))
         self._is_cancelled = True
 
     def run(self):
         """Основной метод потока, выполняющий анализ."""
-        logger.info(f"Запуск потока анализа для {len(self.files_to_summarize)} файлов.")
+        logger.info(self.tr("Запуск потока анализа для {0} файлов.").format(len(self.files_to_summarize)))
         
         try:
             genai.configure(api_key=self.gemini_api_key)
             self.generative_model = genai.GenerativeModel(self.model_name)
         except Exception as e:
-            error_msg = f"Ошибка инициализации модели Gemini в SummarizerWorker: {e}"
+            error_msg = self.tr("Ошибка инициализации модели Gemini в SummarizerWorker: {0}").format(e)
             logger.error(error_msg)
             self.error_occurred.emit(error_msg)
             self.finished.emit()
@@ -166,16 +184,15 @@ class SummarizerWorker(QThread):
         
         for file_path in self.files_to_summarize.keys():
             if self._is_cancelled:
-                logger.warning("Операция анализа была отменена пользователем.")
+                logger.warning(self.tr("Операция анализа была отменена пользователем."))
                 break
 
             logger.debug(f"Анализ файла: {file_path}")
             
-            # 1. Получаем содержимое файла
             content = self.github_manager.get_file_content(self.repo, file_path, self.branch_name)
             
             if content is None:
-                logger.warning(f"Пропуск анализа для файла '{file_path}', так как не удалось получить его содержимое.")
+                logger.warning(self.tr("Пропуск анализа для файла '{0}', так как не удалось получить его содержимое.").format(file_path))
                 processed_count += 1
                 self.progress_updated.emit(processed_count, total_count)
                 continue
@@ -183,31 +200,28 @@ class SummarizerWorker(QThread):
             documents_to_add = []
             metadatas_to_add = []
 
-            # 2. Генерируем саммари (если файл не пустой)
-            summary_text = "(Файл пуст)"
+            summary_text = self.tr("(Файл пуст)")
             if content.strip():
-                prompt = SUMMARIZATION_PROMPT_TEMPLATE.format(file_path=file_path, file_content=content)
+                prompt = self.summarization_prompt_template.format(file_path=file_path, file_content=content)
                 try:
                     response = self.generative_model.generate_content(prompt)
                     summary_text = response.text.strip()
-                    logger.info(f"Успешно создано саммари для '{file_path}'.")
+                    logger.info(self.tr("Успешно создано саммари для '{0}'.").format(file_path))
                 except google_exceptions.ResourceExhausted as e:
-                    error_msg = f"Исчерпаны квоты API Gemini при саммаризации '{file_path}'. Прерывание. Ошибка: {e}"
+                    error_msg = self.tr("Исчерпаны квоты API Gemini при саммаризации '{0}'. Прерывание. Ошибка: {1}").format(file_path, e)
                     logger.error(error_msg)
                     self.error_occurred.emit(error_msg)
                     break 
                 except Exception as e:
-                    summary_text = f"(Ошибка саммаризации: {type(e).__name__})"
-                    error_msg = f"Ошибка API Gemini при саммаризации файла '{file_path}': {type(e).__name__} - {e}"
+                    summary_text = self.tr("(Ошибка саммаризации: {0})").format(type(e).__name__)
+                    error_msg = self.tr("Ошибка API Gemini при саммаризации файла '{0}': {1} - {2}").format(file_path, type(e).__name__, e)
                     logger.error(error_msg)
-                    self.error_occurred.emit(f"Ошибка саммаризации для '{file_path}', файл пропущен в саммари.")
+                    self.error_occurred.emit(self.tr("Ошибка саммаризации для '{0}', файл пропущен в саммари.").format(file_path))
             
-            # Отправляем саммари в UI и добавляем его в пакет для БД
             self.file_summarized.emit(file_path, summary_text)
             documents_to_add.append(summary_text)
             metadatas_to_add.append({'file_path': file_path, 'type': 'summary'})
 
-            # 3. Разбиваем содержимое на чанки
             if content.strip():
                 chunks = self.text_splitter.split_text(content)
                 logger.debug(f"Файл '{file_path}' разбит на {len(chunks)} чанков.")
@@ -215,15 +229,13 @@ class SummarizerWorker(QThread):
                     documents_to_add.append(chunk_text)
                     metadatas_to_add.append({'file_path': file_path, 'type': 'chunk', 'chunk_num': i + 1})
 
-            # 4. Отправляем готовый пакет документов и метаданных в основной поток
             if documents_to_add:
                 self.documents_for_db_ready.emit(documents_to_add, metadatas_to_add)
 
             processed_count += 1
             self.progress_updated.emit(processed_count, total_count)
             
-            # Небольшая задержка, чтобы не превысить лимиты API (requests per minute)
             self.msleep(500) 
 
-        logger.info("Поток анализа завершил свою работу.")
+        logger.info(self.tr("Поток анализа завершил свою работу."))
         self.finished.emit()

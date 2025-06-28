@@ -15,7 +15,6 @@ class PyBridge(QObject):
     """
     Класс-мостик между Python и JavaScript в QWebEngineView.
     """
-    # Сигнал для запроса переключения флага исключения сообщения из API
     messageApiExclusionToggleRequested = Signal(int)
 
     @Slot(str)
@@ -35,7 +34,6 @@ class PyBridge(QObject):
         Слот, вызываемый из JS при клике на кнопку переключения статуса исключения сообщения.
         """
         logger.debug(f"PyBridge: Получен запрос на переключение API exclusion для индекса: {index}")
-        # Просто передаем сигнал дальше в ViewModel
         self.messageApiExclusionToggleRequested.emit(index)
 
 
@@ -55,14 +53,12 @@ class ChatView(QWebEngineView):
         self.page().setWebChannel(self.channel)
         self.channel.registerObject("py_bridge", self.py_bridge)
         
-        # Подключаем сигнал от PyBridge к ViewModel
         self.py_bridge.messageApiExclusionToggleRequested.connect(self._view_model.toggleApiExclusion)
         
         self._connect_viewmodel_signals()
         self.pageLoaded.connect(self._view_model.setChatViewReady)
         self.loadFinished.connect(self._on_load_finished)
 
-        # Загрузка HTML
         script_dir = os.path.dirname(os.path.abspath(__file__))
         html_file_path = os.path.join(script_dir, "chat_template.html")
         local_url = QUrl.fromLocalFile(QFileInfo(html_file_path).absoluteFilePath())
@@ -84,8 +80,9 @@ class ChatView(QWebEngineView):
             logger.info("ChatView: Страница HTML успешно загружена.")
             self.pageLoaded.emit()
         else:
+            error_html = self.tr("<html><body><h1>Ошибка загрузки интерфейса чата</h1><p>Не удалось загрузить chat_template.html</p></body></html>")
             logger.error("ChatView: ОШИБКА загрузки страницы HTML!")
-            self.setHtml("<html><body><h1>Ошибка загрузки интерфейса чата</h1><p>Не удалось загрузить chat_template.html</p></body></html>")
+            self.setHtml(error_html)
 
     @Slot(str, object)
     def _on_perform_search(self, query: str, flags_object):
@@ -125,12 +122,32 @@ class ChatView(QWebEngineView):
         self._run_js("clearChatContent();")
 
     def add_message(self, role: str, html_content: str, message_index: int, is_excluded: bool, is_last: bool = True):
-        """Добавляет отрендеренное HTML сообщение в чат."""
+        """
+        Добавляет отрендеренное HTML сообщение в чат.
+        Передает в JS объект с переведенными строками.
+        """
         logger.debug(f"ChatView: Добавление сообщения (роль: {role}, индекс: {message_index}, исключено: {is_excluded})")
+        
+        # Готовим словарь с переведенными текстами для JS
+        texts = {
+            "user_prefix": self.tr("Вы:"),
+            "model_prefix": self.tr("ИИ:"),
+            "exclude_tooltip": self.tr("Исключить из контекста API"),
+            "include_tooltip": self.tr("Включить в контекст API"),
+            "spoiler_summary": self.tr("Сообщение исключено из контекста API. Нажмите, чтобы раскрыть."),
+            "scroll_top_tooltip": self.tr("К началу этого сообщения"),
+            "copy_button_text": self.tr("Копировать код"),
+            "copied_button_text": self.tr("Скопировано!"),
+        }
+        
         js_safe_html = json.dumps(html_content)
         js_is_excluded = 'true' if is_excluded else 'false'
-        js_code = f'appendMessage("{role}", {js_safe_html}, {message_index}, {js_is_excluded});'
+        js_texts = json.dumps(texts) # Сериализуем словарь в JSON
+        
+        # Вызываем JS функцию с дополнительным параметром
+        js_code = f'appendMessage("{role}", {js_safe_html}, {message_index}, {js_is_excluded}, {js_texts});'
         self._run_js(js_code)
+        
         if is_last:
             self.scroll_to_bottom()
 

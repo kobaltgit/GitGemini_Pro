@@ -20,7 +20,7 @@ class ManageTemplatesDialog(QDialog):
 
     def __init__(self, templates: Dict[str, str], parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.setWindowTitle("Управление шаблонами инструкций")
+        self.setWindowTitle(self.tr("Управление шаблонами инструкций"))
         self.setMinimumSize(500, 400)
 
         self.current_templates = templates.copy()
@@ -30,16 +30,16 @@ class ManageTemplatesDialog(QDialog):
 
         top_layout = QHBoxLayout()
         list_layout = QVBoxLayout()
-        list_label = QLabel("Шаблоны:")
+        list_label = QLabel(self.tr("Шаблоны:"))
         self.templates_list_widget = QListWidget()
         self.templates_list_widget.setSortingEnabled(True)
         list_layout.addWidget(list_label)
         list_layout.addWidget(self.templates_list_widget)
 
         button_layout = QVBoxLayout()
-        self.add_button = QPushButton("Добавить...")
-        self.rename_button = QPushButton("Переименовать...")
-        self.remove_button = QPushButton("Удалить")
+        self.add_button = QPushButton(self.tr("Добавить..."))
+        self.rename_button = QPushButton(self.tr("Переименовать..."))
+        self.remove_button = QPushButton(self.tr("Удалить"))
         button_layout.addWidget(self.add_button)
         button_layout.addWidget(self.rename_button)
         button_layout.addWidget(self.remove_button)
@@ -49,13 +49,13 @@ class ManageTemplatesDialog(QDialog):
         top_layout.addLayout(button_layout, 1)
         main_layout.addLayout(top_layout)
 
-        text_label = QLabel("Текст выбранного шаблона:")
+        text_label = QLabel(self.tr("Текст выбранного шаблона:"))
         self.template_text_edit = QTextEdit()
         main_layout.addWidget(text_label)
         main_layout.addWidget(self.template_text_edit, 1)
 
-        self.save_changes_button = QPushButton("Сохранить изменения в тексте")
-        self.save_changes_button.setToolTip("Сохранить текст для выбранного в списке шаблона")
+        self.save_changes_button = QPushButton(self.tr("Сохранить изменения в тексте"))
+        self.save_changes_button.setToolTip(self.tr("Сохранить текст для выбранного в списке шаблона"))
         main_layout.addWidget(self.save_changes_button)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -103,14 +103,14 @@ class ManageTemplatesDialog(QDialog):
     @Slot()
     def _add_template(self):
         """Добавляет новый шаблон."""
-        template_name, ok = QInputDialog.getText(self, "Добавить шаблон", "Введите имя нового шаблона:")
+        template_name, ok = QInputDialog.getText(self, self.tr("Добавить шаблон"), self.tr("Введите имя нового шаблона:"))
         if ok and template_name:
             template_name = template_name.strip()
             if not template_name:
-                QMessageBox.warning(self, "Ошибка", "Имя шаблона не может быть пустым.")
+                QMessageBox.warning(self, self.tr("Ошибка"), self.tr("Имя шаблона не может быть пустым."))
                 return
             if template_name in self.current_templates:
-                QMessageBox.warning(self, "Ошибка", f"Шаблон с именем '{template_name}' уже существует.")
+                QMessageBox.warning(self, self.tr("Ошибка"), self.tr("Шаблон с именем '{0}' уже существует.").format(template_name))
                 return
 
             self.current_templates[template_name] = ""
@@ -131,17 +131,17 @@ class ManageTemplatesDialog(QDialog):
             return
 
         old_name = self._selected_template_name
-        new_name, ok = QInputDialog.getText(self, "Переименовать шаблон", f"Введите новое имя для '{old_name}':", QLineEdit.EchoMode.Normal, old_name)
+        new_name, ok = QInputDialog.getText(self, self.tr("Переименовать шаблон"), self.tr("Введите новое имя для '{0}':").format(old_name), QLineEdit.EchoMode.Normal, old_name)
 
         if ok and new_name:
             new_name = new_name.strip()
             if not new_name:
-                QMessageBox.warning(self, "Ошибка", "Имя шаблона не может быть пустым.")
+                QMessageBox.warning(self, self.tr("Ошибка"), self.tr("Имя шаблона не может быть пустым."))
                 return
             if new_name == old_name:
                 return
             if new_name in self.current_templates:
-                QMessageBox.warning(self, "Ошибка", f"Шаблон с именем '{new_name}' уже существует.")
+                QMessageBox.warning(self, self.tr("Ошибка"), self.tr("Шаблон с именем '{0}' уже существует.").format(new_name))
                 return
 
             template_content = self.current_templates.pop(old_name)
@@ -162,8 +162,8 @@ class ManageTemplatesDialog(QDialog):
             return
 
         template_name_to_remove = self._selected_template_name
-        reply = QMessageBox.question(self, "Удалить шаблон?",
-                                     f"Вы уверены, что хотите удалить шаблон '{template_name_to_remove}'?",
+        reply = QMessageBox.question(self, self.tr("Удалить шаблон?"),
+                                     self.tr("Вы уверены, что хотите удалить шаблон '{0}'?").format(template_name_to_remove),
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                      QMessageBox.StandardButton.No)
 
@@ -184,15 +184,15 @@ class ManageTemplatesDialog(QDialog):
     def _save_template_changes(self):
         """Сохраняет текст из QTextEdit в выбранный шаблон в словаре."""
         if not self._selected_template_name:
-            QMessageBox.warning(self, "Ошибка", "Нет выбранного шаблона для сохранения текста.")
+            QMessageBox.warning(self, self.tr("Ошибка"), self.tr("Нет выбранного шаблона для сохранения текста."))
             return
 
         current_text = self.template_text_edit.toPlainText()
         self.current_templates[self._selected_template_name] = current_text
         logger.info(f"Текст шаблона '{self._selected_template_name}' обновлен (временно, в диалоге).")
         
-        self.save_changes_button.setText("Изменения сохранены!")
-        QTimer.singleShot(1500, lambda: self.save_changes_button.setText("Сохранить изменения в тексте"))
+        self.save_changes_button.setText(self.tr("Изменения сохранены!"))
+        QTimer.singleShot(1500, lambda: self.save_changes_button.setText(self.tr("Сохранить изменения в тексте")))
 
     def get_updated_templates(self) -> Dict[str, str]:
         """Возвращает обновленный словарь шаблонов."""

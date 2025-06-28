@@ -88,8 +88,6 @@ class ChatViewModel(QObject):
         # Настройки UI
         self._settings_visible: bool = False
         self._instructions_visible: bool = True
-        # self._checked_common_extensions: set[str] = set(self._model.get_extensions())
-        # self._custom_extensions_text: str = ""
 
         # Состояние поиска
         self._search_query: Optional[str] = None
@@ -103,7 +101,7 @@ class ChatViewModel(QObject):
         self._connect_model_signals()
         
         # --- Инициализация состояния ViewModel из Модели ---
-        self._on_session_loaded() # Первый запуск эквивалентен загрузке новой сессии
+        self._on_session_loaded()
 
     def _connect_model_signals(self):
         # Статусы
@@ -140,14 +138,14 @@ class ChatViewModel(QObject):
     @Property(str, notify=geminiApiKeyStatusTextChanged)
     def geminiApiKeyStatusText(self) -> str:
         loaded = self._model._gemini_api_key_loaded
-        return ("<font color='green'>Ключ API: Загружен</font>" if loaded
-                else "<font color='red'>Ключ API: Не найден!</font>")
+        return (self.tr("<font color='green'>Ключ API: Загружен</font>") if loaded
+                else self.tr("<font color='red'>Ключ API: Не найден!</font>"))
 
     @Property(str, notify=githubTokenStatusTextChanged)
     def githubTokenStatusText(self) -> str:
         loaded = self._model._github_token_loaded
-        return ("<font color='green'>Токен GitHub: Загружен</font>" if loaded
-                else "<font color='red'>Токен GitHub: Не найден!</font>")
+        return (self.tr("<font color='green'>Токен GitHub: Загружен</font>") if loaded
+                else self.tr("<font color='red'>Токен GitHub: Не найден!</font>"))
     
     @Property(str, notify=repoUrlChanged)
     def repoUrl(self) -> str: return self._repo_url
@@ -172,9 +170,11 @@ class ChatViewModel(QObject):
 
     @Property(str, notify=windowTitleChanged)
     def windowTitle(self) -> str:
-        base_title = "GitGemini Pro"
+        base_title = self.tr("GitGemini Pro")
         session_path = self._model.get_current_session_filepath()
-        session_name = (os.path.basename(session_path).replace(db_manager.SESSION_EXTENSION, "") if session_path else "Новая сессия")
+        session_name = (os.path.basename(session_path).replace(db_manager.SESSION_EXTENSION, "") 
+                        if session_path 
+                        else self.tr("Новая сессия"))
         dirty_indicator = "*" if self._model.is_dirty() else ""
         return f"{base_title} - {session_name}{dirty_indicator}"
         
@@ -183,7 +183,6 @@ class ChatViewModel(QObject):
     def canSend(self) -> bool:
         collection_is_ready = False
         if self._model._current_collection:
-            # Проверяем, что в коллекции есть хотя бы один документ
             if self._model._vector_db_manager.get_collection_doc_count(self._model._current_collection) > 0:
                 collection_is_ready = True
 
@@ -191,7 +190,7 @@ class ChatViewModel(QObject):
                 self._model._gemini_api_key_loaded and
                 self._model._github_token_loaded and
                 bool(self._model.get_repo_url()) and
-                collection_is_ready and # <-- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
+                collection_is_ready and
                 not self._is_request_running and
                 not self._is_analysis_running)
 
@@ -263,18 +262,15 @@ class ChatViewModel(QObject):
     @Slot()
     def cancelRequest(self):
         logger.info("Команда: отменить запрос к API.")
-        # self._model.cancel_api_request() # Эта логика будет в модели
+        # Логика отмены находится в модели
     
     # Обновление настроек
     @Slot(str)
     def updateRepoUrl(self, url: str):
-        # Этот метод теперь просто передает команду в модель.
-        # Обновление UI произойдет по сигналу _on_repo_data_changed.
         self._model.set_repo_url(url.strip())
 
     @Slot(str)
     def updateSelectedBranch(self, branch: str):
-        # Аналогично, просто передаем команду в модель.
         if branch:
             self._model.set_repo_branch(branch)
     @Slot(str)
@@ -293,7 +289,7 @@ class ChatViewModel(QObject):
     @Slot()
     def newSession(self): self._model.new_session()
     @Slot()
-    def openSession(self): self.showFileDialog.emit("open", "Открыть сессию", f"Файлы сессий (*{db_manager.SESSION_EXTENSION})")
+    def openSession(self): self.showFileDialog.emit("open", self.tr("Открыть сессию"), self.tr("Файлы сессий (*{0})").format(db_manager.SESSION_EXTENSION))
     @Slot(str)
     def sessionFileSelectedToOpen(self, filepath: str):
         if filepath: self._model.load_session(filepath)
@@ -307,9 +303,9 @@ class ChatViewModel(QObject):
             return False
     @Slot()
     def saveSessionAs(self):
-        default_name = f"Сессия_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}{db_manager.SESSION_EXTENSION}"
-        file_filter = f"Файлы сессий (*{db_manager.SESSION_EXTENSION})"
-        self.showFileDialog.emit("save", "Сохранить сессию как...", f"{default_name};;{file_filter}")
+        default_name = self.tr("Сессия_{0}{1}").format(datetime.datetime.now().strftime('%Y%m%d_%H%M%S'), db_manager.SESSION_EXTENSION)
+        file_filter = self.tr("Файлы сессий (*{0})").format(db_manager.SESSION_EXTENSION)
+        self.showFileDialog.emit("save", self.tr("Сохранить сессию как..."), f"{default_name};;{file_filter}")
     @Slot(str)
     def sessionFileSelectedToSave(self, filepath: str):
         if filepath:
@@ -361,19 +357,19 @@ class ChatViewModel(QObject):
         
     @Slot(int, int, str)
     def _on_analysis_progress_updated(self, processed, total, file_path):
-        # Передаем в статус-бар
-        self.statusMessageChanged.emit(f"Анализ: {processed}/{total} ({os.path.basename(file_path)})", 0)
+        progress_text = self.tr("Анализ: {0}/{1} ({2})").format(processed, total, os.path.basename(file_path))
+        self.statusMessageChanged.emit(progress_text, 0)
 
     @Slot()
     def _on_analysis_finished(self):
         self._is_analysis_running = False
         self._update_all_button_states()
-        self.chatUpdateRequired.emit() # Перерисовать чат, т.к. теперь можно отправлять
+        self.chatUpdateRequired.emit()
         
     @Slot(str)
     def _on_analysis_error(self, error_message: str):
         self._is_analysis_running = False
-        self.showMessageDialog.emit("crit", "Ошибка анализа", error_message)
+        self.showMessageDialog.emit("crit", self.tr("Ошибка анализа"), error_message)
         self._update_all_button_states()
 
     @Slot()
@@ -392,7 +388,7 @@ class ChatViewModel(QObject):
 
     @Slot(str)
     def _on_api_response_received(self, text: str):
-        self._last_api_intermediate_step = None # Стираем промежуточное сообщение
+        self._last_api_intermediate_step = None
 
     @Slot(str)
     def _on_api_error_occurred(self, error_message: str):
@@ -420,7 +416,6 @@ class ChatViewModel(QObject):
         self._checked_common_extensions = set(self._model.get_extensions())
         self._custom_extensions_text = ""
         logger.info("--- ViewModel: Загрузка/обновление состояния из Модели ---")
-        # self.repoUrlChanged.emit()
         self.modelNameChanged.emit()
         self.maxTokensChanged.emit()
         self.instructionsTextChanged.emit()
@@ -428,17 +423,17 @@ class ChatViewModel(QObject):
         self._parse_and_emit_extensions()
         self._update_all_button_states()
         self.chatUpdateRequired.emit()
-        self.resetUiForNewSession.emit() # Сигнал для полного обновления UI
-        self.windowTitleChanged.emit() # Обновить заголовок
+        self.resetUiForNewSession.emit()
+        self.windowTitleChanged.emit()
         self.isDirtyChanged.emit()
 
     @Slot(str)
     def _on_session_error(self, error_message: str):
-        self.showMessageDialog.emit("crit", "Ошибка сессии", error_message)
+        self.showMessageDialog.emit("crit", self.tr("Ошибка сессии"), error_message)
 
     @Slot(int, int)
     def _on_token_count_updated(self, current_tokens: int, context_limit: int):
-        info = f"Токены промпта: {current_tokens} / {context_limit}"
+        info = self.tr("Токены промпта: {0} / {1}").format(current_tokens, context_limit)
         self.tokenInfoChanged.emit(info)
 
     # --- Вспомогательные методы ---
@@ -495,5 +490,3 @@ class ChatViewModel(QObject):
     @Slot(bool)
     def setSearchResultStatus(self, found: bool):
         logger.debug(f"Получен статус поиска от ChatView: Найдено={found}")
-        # Этот слот в основном для отладки, реальное обновление UI (например, цвета поля)
-        # происходит в MainWindow на основе сигнала searchStatusUpdate.

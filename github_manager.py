@@ -5,6 +5,8 @@ import base64
 import re
 from typing import Optional, Dict, Tuple, List, Set
 
+from PySide6.QtCore import QObject
+
 from github import Github, UnknownObjectException, BadCredentialsException, RateLimitExceededException
 from github.Repository import Repository
 from github.ContentFile import ContentFile
@@ -20,7 +22,7 @@ DEFAULT_IGNORED_DIRS = {
     "docs", "examples", "tests", "test", "samples"
 }
 
-class GitHubManager:
+class GitHubManager(QObject):
     """
     Класс для инкапсуляции логики взаимодействия с GitHub API.
     Отвечает за аутентификацию, получение информации о репозитории и чтение файлов.
@@ -33,64 +35,50 @@ class GitHubManager:
         Args:
             token: Персональный токен доступа GitHub.
         """
+        super().__init__()
         self.token = token
         self.gh: Optional[Github] = None
-        self.rate_limit_info: str = "Неизвестно"
+        self.rate_limit_info: str = self.tr("Неизвестно")
         
         if self.token:
             try:
                 self.gh = Github(self.token)
-                # Проверим соединение и получим информацию о лимитах
                 rate_limit = self.gh.get_rate_limit()
-                self.rate_limit_info = f"Осталось {rate_limit.core.remaining}/{rate_limit.core.limit}"
-                logger.info(f"GitHubManager инициализирован успешно. Лимит запросов: {self.rate_limit_info}")
+                self.rate_limit_info = self.tr("Осталось {0}/{1}").format(rate_limit.core.remaining, rate_limit.core.limit)
+                logger.info(self.tr("GitHubManager инициализирован успешно. Лимит запросов: {0}").format(self.rate_limit_info))
             except BadCredentialsException:
-                logger.error("Ошибка аутентификации GitHub: Неверный токен (BadCredentialsException).")
+                logger.error(self.tr("Ошибка аутентификации GitHub: Неверный токен (BadCredentialsException)."))
                 self.gh = None
             except Exception as e:
-                logger.error(f"Неожиданная ошибка при инициализации GitHub-клиента: {e}")
+                logger.error(self.tr("Неожиданная ошибка при инициализации GitHub-клиента: {0}").format(e))
                 self.gh = None
         else:
-            logger.warning("GitHubManager инициализирован без токена. Доступ будет только к публичным репозиториям.")
-            self.gh = Github() # Инициализация без токена для публичного доступа
+            logger.warning(self.tr("GitHubManager инициализирован без токена. Доступ будет только к публичным репозиториям."))
+            self.gh = Github()
 
     def is_authenticated(self) -> bool:
         """Проверяет, аутентифицирован ли клиент."""
         return self.gh is not None and self.token is not None
 
-    @staticmethod
-    def _parse_repo_url(repo_url: str) -> Optional[Tuple[str, str, Optional[str]]]:
+    def _parse_repo_url(self, repo_url: str) -> Optional[Tuple[str, str, Optional[str]]]:
         """
         Извлекает 'владелец/имя_репозитория' и опционально 'ветку' из URL.
-        
-        Args:
-            repo_url: URL репозитория.
-        
-        Returns:
-            Кортеж (owner, repo_name, branch_name) или None.
         """
-        # Паттерн теперь опционально захватывает часть URL с /tree/branch-name
         pattern = r"(?:https?://)?(?:www\.)?github\.com/([\w\.\-]+)/([\w\.\-]+)(?:/tree/([\w\.\-]+))?"
         match = re.search(pattern, repo_url)
         if match:
             owner, repo_name, branch = match.groups()
-            logger.debug(f"URL '{repo_url}' распарсен как '{owner}/{repo_name}' (Ветка: {branch})")
+            logger.debug(self.tr("URL '{0}' распарсен как '{1}/{2}' (Ветка: {3})").format(repo_url, owner, repo_name, branch))
             return owner, repo_name, branch
-        logger.warning(f"Не удалось распарсить URL репозитория: '{repo_url}'")
+        logger.warning(self.tr("Не удалось распарсить URL репозитория: '{0}'").format(repo_url))
         return None
 
     def get_repo(self, repo_url: str) -> Optional[Tuple[Repository, Optional[str]]]:
         """
         Получает объект репозитория и имя ветки из URL.
-
-        Args:
-            repo_url: Полный URL репозитория.
-
-        Returns:
-            Кортеж (объект Repository, имя ветки) или None.
         """
         if not self.gh:
-            logger.error("Невозможно получить репозиторий: клиент GitHub не инициализирован.")
+            logger.error(self.tr("Невозможно получить репозиторий: клиент GitHub не инициализирован."))
             return None
 
         parsed_data = self._parse_repo_url(repo_url)
@@ -102,19 +90,19 @@ class GitHubManager:
 
         try:
             repo = self.gh.get_repo(repo_identifier)
-            logger.info(f"Успешно получен доступ к репозиторию: {repo.full_name}")
+            logger.info(self.tr("Успешно получен доступ к репозиторию: {0}").format(repo.full_name))
             return repo, branch_from_url
         except UnknownObjectException:
-            logger.error(f"Репозиторий '{repo_identifier}' не найден или является приватным без доступа.")
+            logger.error(self.tr("Репозиторий '{0}' не найден или является приватным без доступа.").format(repo_identifier))
             return None
         except BadCredentialsException:
-            logger.error("Ошибка аутентификации при доступе к репозиторию. Проверьте ваш токен.")
+            logger.error(self.tr("Ошибка аутентификации при доступе к репозиторию. Проверьте ваш токен."))
             return None
         except RateLimitExceededException:
-            logger.error("Превышен лимит запросов к GitHub API. Попробуйте позже.")
+            logger.error(self.tr("Превышен лимит запросов к GitHub API. Попробуйте позже."))
             return None
         except Exception as e:
-            logger.error(f"Неожиданная ошибка при получении репозитория: {e}")
+            logger.error(self.tr("Неожиданная ошибка при получении репозитория: {0}").format(e))
             return None
         
     def get_available_branches(self, repo: Repository) -> List[str]:
@@ -123,15 +111,14 @@ class GitHubManager:
             return []
         try:
             branches = [branch.name for branch in repo.get_branches()]
-            # Перемещаем ветку по умолчанию в начало списка
             default_branch = repo.default_branch
             if default_branch in branches:
                 branches.remove(default_branch)
                 branches.insert(0, default_branch)
-            logger.info(f"Найдено {len(branches)} веток для репозитория '{repo.full_name}'.")
+            logger.info(self.tr("Найдено {0} веток для репозитория '{1}'.").format(len(branches), repo.full_name))
             return branches
         except Exception as e:
-            logger.error(f"Не удалось получить список веток для '{repo.full_name}': {e}")
+            logger.error(self.tr("Не удалось получить список веток для '{0}': {1}").format(repo.full_name, e))
             return []
 
     def get_repo_file_tree(
@@ -145,17 +132,19 @@ class GitHubManager:
         """
         Получает плоский список путей к файлам в указанной ветке репозитория.
         """
-        logger.info(f"Начинается анализ дерева файлов для '{repo.full_name}' в ветке '{branch_name}'...")
+        logger.info(self.tr("Начинается анализ дерева файлов для '{0}' в ветке '{1}'...").format(repo.full_name, branch_name))
         try:
             branch = repo.get_branch(branch_name)
             tree = repo.get_git_tree(branch.commit.sha, recursive=True)
-            logger.info(f"Получено дерево файлов, {len(tree.tree)} элементов.")
+            logger.info(self.tr("Получено дерево файлов, {0} элементов.").format(len(tree.tree)))
         except UnknownObjectException:
-            logger.error(f"Ветка '{branch_name}' не найдена в репозитории '{repo.full_name}'.")
-            return {}, [f"Ошибка: Ветка '{branch_name}' не найдена."]
+            msg = self.tr("Ветка '{0}' не найдена в репозитории '{1}'.").format(branch_name, repo.full_name)
+            logger.error(msg)
+            return {}, [self.tr("Ошибка: Ветка '{0}' не найдена.").format(branch_name)]
         except Exception as e:
-            logger.error(f"Не удалось получить дерево файлов для ветки '{branch_name}': {e}")
-            return {}, [f"Ошибка: Не удалось получить дерево файлов: {e}"]
+            msg = self.tr("Не удалось получить дерево файлов для ветки '{0}': {1}").format(branch_name, e)
+            logger.error(msg)
+            return {}, [self.tr("Ошибка: Не удалось получить дерево файлов: {0}").format(e)]
 
         filtered_files: Dict[str, int] = {}
         skipped_info: List[str] = []
@@ -168,11 +157,11 @@ class GitHubManager:
                 if not element.path.endswith(extensions):
                     continue
                 if element.size > max_size_bytes:
-                    skipped_info.append(f"Пропущен (размер > {max_file_size_kb}KB): {element.path}")
+                    skipped_info.append(self.tr("Пропущен (размер > {0}KB): {1}").format(max_file_size_kb, element.path))
                     continue
                 filtered_files[element.path] = element.size
 
-        logger.info(f"Анализ дерева завершен. Найдено подходящих файлов: {len(filtered_files)}. Пропущено: {len(skipped_info)}.")
+        logger.info(self.tr("Анализ дерева завершен. Найдено подходящих файлов: {0}. Пропущено: {1}.").format(len(filtered_files), len(skipped_info)))
         return filtered_files, skipped_info
 
     def get_file_content(self, repo: Repository, file_path: str, branch_name: str) -> Optional[str]:
@@ -180,27 +169,26 @@ class GitHubManager:
         Получает содержимое одного файла из указанной ветки репозитория.
         """
         if not file_path:
-             logger.warning("get_file_content вызван с пустым путем. Пропуск.")
+             logger.warning(self.tr("get_file_content вызван с пустым путем. Пропуск."))
              return None
              
-        logger.debug(f"Запрос содержимого файла: {file_path} из ветки {branch_name}")
+        logger.debug(self.tr("Запрос содержимого файла: {0} из ветки {1}").format(file_path, branch_name))
         try:
-            # Используем ref=branch_name для указания ветки
             content_file = repo.get_contents(file_path, ref=branch_name)
 
             if isinstance(content_file, list):
-                logger.warning(f"Путь '{file_path}' указывает на директорию, а не на файл. Пропуск.")
+                logger.warning(self.tr("Путь '{0}' указывает на директорию, а не на файл. Пропуск.").format(file_path))
                 return None
 
             if content_file.encoding == "base64" and content_file.content:
                 decoded_content = base64.b64decode(content_file.content).decode('utf-8', errors='ignore')
                 return decoded_content
             else:
-                logger.warning(f"Файл '{file_path}' пуст или имеет неизвестную кодировку: {content_file.encoding}")
+                logger.warning(self.tr("Файл '{0}' пуст или имеет неизвестную кодировку: {1}").format(file_path, content_file.encoding))
                 return ""
         except UnknownObjectException:
-            logger.error(f"Файл '{file_path}' не найден в ветке '{branch_name}'.")
+            logger.error(self.tr("Файл '{0}' не найден в ветке '{1}'.").format(file_path, branch_name))
             return None
         except Exception as e:
-            logger.error(f"Не удалось получить содержимое файла '{file_path}': {e}")
+            logger.error(self.tr("Не удалось получить содержимое файла '{0}': {1}").format(file_path, e))
             return None

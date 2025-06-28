@@ -4,15 +4,17 @@ import logging
 import os
 import numpy as np
 from transformers import AutoTokenizer, AutoConfig
-import onnxruntime as ort # Импортируем onnxruntime напрямую
+import onnxruntime as ort
 from typing import List
+
+from PySide6.QtCore import QObject
 
 logger = logging.getLogger(__name__)
 
 # Определяем имя модели один раз для токенизатора и конфигурации
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-class ONNXEmbeddingModel:
+class ONNXEmbeddingModel(QObject):
     """
     Класс для создания текстовых эмбеддингов с использованием ONNX-модели.
     Использует onnxruntime напрямую для максимальной совместимости с CPU
@@ -22,7 +24,8 @@ class ONNXEmbeddingModel:
         """
         Инициализирует токенизатор и загружает ONNX-модель из локального файла.
         """
-        logger.info(f"Загрузка компонентов для ONNX-модели: {MODEL_NAME}")
+        super().__init__()
+        logger.info(self.tr("Загрузка компонентов для ONNX-модели: {0}").format(MODEL_NAME))
 
         # Определяем путь к локальному файлу модели
         try:
@@ -30,7 +33,7 @@ class ONNXEmbeddingModel:
             model_path = os.path.join(script_dir, "onnx_model", "model.onnx")
 
             if not os.path.exists(model_path):
-                error_message = f"Файл модели не найден по пути: {model_path}. Пожалуйста, скачайте его, как описано в инструкции."
+                error_message = self.tr("Файл модели не найден по пути: {0}. Пожалуйста, скачайте его, как описано в инструкции.").format(model_path)
                 logger.critical(error_message)
                 raise FileNotFoundError(error_message)
 
@@ -40,10 +43,10 @@ class ONNXEmbeddingModel:
             # Токенизатор и конфигурацию по-прежнему загружаем из Hugging Face
             self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
             self.config = AutoConfig.from_pretrained(MODEL_NAME)
-            logger.info("ONNX сессия, токенизатор и конфигурация успешно загружены.")
+            logger.info(self.tr("ONNX сессия, токенизатор и конфигурация успешно загружены."))
 
         except Exception as e:
-            error_message = f"Критическая ошибка при загрузке ONNX-компонентов: {e}"
+            error_message = self.tr("Критическая ошибка при загрузке ONNX-компонентов: {0}").format(e)
             logger.critical(error_message, exc_info=True)
             raise RuntimeError(error_message)
 
@@ -80,9 +83,6 @@ class ONNXEmbeddingModel:
         )
 
         # 2. Подготовка входов для ONNX сессии
-        # Имена ключей ('input_ids', 'attention_mask', 'token_type_ids') должны
-        # точно совпадать с именами входов в графе ONNX-модели.
-        # Также явно приводим типы к int64, как этого часто требует ONNX.
         ort_inputs = {
             'input_ids': encoded_input['input_ids'].astype(np.int64),
             'attention_mask': encoded_input['attention_mask'].astype(np.int64),
@@ -90,8 +90,6 @@ class ONNXEmbeddingModel:
         }
 
         # 3. Запуск инференса через ONNX Runtime
-        # session.run возвращает список выходных тензоров. Для этой модели
-        # нас интересует первый выход - last_hidden_state.
         ort_outputs = self.session.run(None, ort_inputs)
         last_hidden_state = ort_outputs[0]
 

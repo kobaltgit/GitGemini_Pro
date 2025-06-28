@@ -22,7 +22,7 @@ class SummariesWindow(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.setWindowTitle("Проанализированные файлы")
+        self.setWindowTitle(self.tr("Проанализированные файлы"))
         self.setMinimumSize(600, 400)
         # Устанавливаем флаг, чтобы окно имело собственную иконку на панели задач
         self.setWindowFlag(Qt.WindowType.Window)
@@ -34,9 +34,9 @@ class SummariesWindow(QWidget):
         
         # Поиск
         search_layout = QHBoxLayout()
-        search_label = QLabel("Поиск файла:")
+        search_label = QLabel(self.tr("Поиск файла:"))
         self.search_line_edit = QLineEdit()
-        self.search_line_edit.setPlaceholderText("Введите часть имени файла...")
+        self.search_line_edit.setPlaceholderText(self.tr("Введите часть имени файла..."))
         search_layout.addWidget(search_label)
         search_layout.addWidget(self.search_line_edit)
         main_layout.addLayout(search_layout)
@@ -60,7 +60,7 @@ class SummariesWindow(QWidget):
         right_layout.setContentsMargins(0,0,0,0)
         self.summary_text_edit = QTextEdit()
         self.summary_text_edit.setReadOnly(True)
-        self.summary_text_edit.setPlaceholderText("Выберите файл в списке слева, чтобы увидеть его саммари.")
+        self.summary_text_edit.setPlaceholderText(self.tr("Выберите файл в списке слева, чтобы увидеть его саммари."))
         right_layout.addWidget(self.summary_text_edit)
 
         splitter.addWidget(left_widget)

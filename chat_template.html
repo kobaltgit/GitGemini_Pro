@@ -193,7 +193,7 @@
             console.log("JS: Чат очищен.");
         }
 
-        function appendMessage(role, htmlString, messageIndex, isExcluded) {
+        function appendMessage(role, htmlString, messageIndex, isExcluded, texts) {
             if (!chatContainer) return;
 
             const messageDiv = document.createElement('div');
@@ -204,14 +204,14 @@
 
             const prefixSpan = document.createElement('span');
             prefixSpan.classList.add('prefix');
-            prefixSpan.textContent = (role === 'user') ? 'Вы:' : 'ИИ:';
+            prefixSpan.textContent = (role === 'user') ? texts.user_prefix : texts.model_prefix;
             messageDiv.appendChild(prefixSpan);
 
             let contentElement;
             if (isExcluded) {
                 const details = document.createElement('details');
                 const summary = document.createElement('summary');
-                summary.textContent = "Сообщение исключено из контекста API. Нажмите, чтобы раскрыть.";
+                summary.textContent = texts.spoiler_summary;
                 const contentDiv = document.createElement('div');
                 contentDiv.classList.add('content');
                 contentDiv.innerHTML = htmlString;
@@ -227,13 +227,13 @@
             }
             messageDiv.appendChild(contentElement);
 
-            if (role === 'model') addCopyButtons(contentElement);
+            if (role === 'model') addCopyButtons(contentElement, texts);
 
             if (messageIndex >= 0) { // Не добавляем кнопки для системных сообщений
                 const scrollTopButton = document.createElement('button');
                 scrollTopButton.className = 'scroll-to-top-button';
                 scrollTopButton.textContent = '⮝';
-                scrollTopButton.title = 'К началу этого сообщения';
+                scrollTopButton.title = texts.scroll_top_tooltip;
                 scrollTopButton.onclick = (event) => {
                     const msgEl = event.target.closest('.message');
                     if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -243,7 +243,7 @@
                 const toggleButton = document.createElement('button');
                 toggleButton.className = 'toggle-exclusion-button';
                 toggleButton.textContent = isExcluded ? '👁' : '🛇';
-                toggleButton.title = isExcluded ? 'Включить в контекст API' : 'Исключить из контекста API';
+                toggleButton.title = isExcluded ? texts.include_tooltip : texts.exclude_tooltip;
                 toggleButton.onclick = () => toggleExclusion(messageIndex);
                 messageDiv.appendChild(toggleButton);
             }
@@ -284,25 +284,25 @@
              if (chatContainer) requestAnimationFrame(() => { chatContainer.scrollTop = chatContainer.scrollHeight; });
         }
 
-        function addCopyButtons(containerElement) {
+        function addCopyButtons(containerElement, texts) {
             containerElement.querySelectorAll('.codehilite').forEach(block => {
                 if (block.querySelector('.copy-code-button')) return;
                 const button = document.createElement('button');
-                button.textContent = 'Копировать код';
+                button.textContent = texts.copy_button_text;
                 button.classList.add('copy-code-button');
-                button.onclick = () => copyCode(button);
+                button.onclick = () => copyCode(button, texts);
                 block.appendChild(button);
             });
         }
 
-        function copyCode(buttonElement) {
+        function copyCode(buttonElement, texts) {
             const codeBlockDiv = buttonElement.closest('.codehilite');
             if (!codeBlockDiv) return;
             const preElement = codeBlockDiv.querySelector('pre');
             if (!preElement || !pyBridge) return;
             pyBridge.copy_code_to_clipboard(preElement.innerText || preElement.textContent);
-            buttonElement.textContent = 'Скопировано!';
-            setTimeout(() => { buttonElement.textContent = 'Копировать код'; }, 1500);
+            buttonElement.textContent = texts.copied_button_text;
+            setTimeout(() => { buttonElement.textContent = texts.copy_button_text; }, 1500);
         }
     </script>
 </body>
