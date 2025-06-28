@@ -141,6 +141,7 @@ class SummarizerWorker(QThread):
                  files_to_summarize: Dict[str, int],
                  gemini_api_key: str,
                  model_name: str,
+                 app_lang: str = 'en', # Добавляем app_lang
                  parent: Optional[QObject] = None):
         super().__init__(parent)
         self.github_manager = github_manager
@@ -153,9 +154,8 @@ class SummarizerWorker(QThread):
         self.generative_model: Optional[genai.GenerativeModel] = None
         self.text_splitter = SimpleTextSplitter(chunk_size=1000, chunk_overlap=150)
 
-        # Выбираем шаблон промпта в зависимости от текущей локали
-        locale_lang = QLocale.system().name().split('_')[0]
-        if locale_lang == 'ru':
+        # Выбираем шаблон промпта в зависимости от переданного app_lang
+        if app_lang == 'ru':
             self.summarization_prompt_template = SUMMARIZATION_PROMPT_RU
         else:
             self.summarization_prompt_template = SUMMARIZATION_PROMPT_EN

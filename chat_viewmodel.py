@@ -77,6 +77,8 @@ class ChatViewModel(QObject):
         if not isinstance(model, ChatModel):
             raise TypeError("Model must be an instance of ChatModel")
         self._model = model
+        # Здесь мы НЕ создаем ChatModel, а получаем уже инициализированный.
+        # Язык, загруженный из .env, уже находится внутри self._model.
 
         # --- Внутреннее состояние ViewModel ---
         self._is_chat_view_ready: bool = False

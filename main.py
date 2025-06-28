@@ -832,7 +832,7 @@ def main():
     logger.info("="*20 + " Запуск приложения GitGemini Pro " + "="*20)
     logger.info(f"Используемый язык: {app_lang}")
 
-    chat_model = ChatModel()
+    chat_model = ChatModel(app_lang=app_lang) # Передаем выбранный язык в модель
     chat_view_model = ChatViewModel(chat_model)
     window = MainWindow(chat_view_model)
     window.show()

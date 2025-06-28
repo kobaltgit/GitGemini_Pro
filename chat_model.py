@@ -104,8 +104,9 @@ class ChatModel(QObject):
     statusMessage = Signal(str, int)
     tokenCountUpdated = Signal(int, int)
 
-    def __init__(self, parent=None):
+    def __init__(self, app_lang: str = 'en', parent=None): # Добавляем app_lang
         super().__init__(parent)
+        self._app_language = app_lang # Сохраняем язык приложения
         # --- Состояние аутентификации ---
         self._dotenv_path: Optional[str] = find_dotenv()
         self._gemini_api_key: Optional[str] = None
@@ -242,7 +243,8 @@ class ChatModel(QObject):
         self._summarizer_worker = SummarizerWorker(
             github_manager=self._github_manager, repo=self._repo_object,
             branch_name=self._repo_branch, files_to_summarize=files_to_process,
-            gemini_api_key=self._gemini_api_key, model_name=self._model_name
+            gemini_api_key=self._gemini_api_key, model_name=self._model_name,
+            app_lang=self._app_language # Передаем язык в воркер
         )
         self._summarizer_worker.file_summarized.connect(self._on_file_summarized)
         self._summarizer_worker.documents_for_db_ready.connect(self._on_documents_for_db_ready)
@@ -354,11 +356,19 @@ class ChatModel(QObject):
         current_tokens = 0
         
         instructions_part = []
-        if self._instructions:
-            instructions_part.extend([
-                {"role": "user", "parts": [self.tr("**Системные инструкции:**\n{0}").format(self._instructions)]},
-                {"role": "model", "parts": [self.tr("OK. Инструкции приняты.")]}
-            ])
+        # Добавляем явное указание модели отвечать на выбранном языке
+        lang_instruction = "на русском языке" if self._app_language == 'ru' else "in English"
+        
+        system_instructions_text = self.tr("**Системные инструкции:**\n{0}").format(self._instructions) if self._instructions else ""
+        
+        # Формируем инструкцию, добавляя требование по языку
+        # Это будет вставляться в начало диалога с моделью
+        combined_instructions = f"{system_instructions_text}\n\n{self.tr('Пожалуйста, отвечай на все вопросы {0}.').format(lang_instruction)}"
+        
+        instructions_part.extend([
+            {"role": "user", "parts": [combined_instructions.strip()]},
+            {"role": "model", "parts": [self.tr("OK. Инструкции и язык приняты.")]}
+        ])
         
         history_to_consider = self._chat_history[:-1] 
         last_user_message = self._chat_history[-1]
