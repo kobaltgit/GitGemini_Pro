@@ -293,7 +293,7 @@ class ChatModel(QObject):
         self.apiRequestStarted.emit(); self.add_user_message(user_input_stripped)
         
         self.apiIntermediateStep.emit(self.tr("Этап 1: Поиск релевантных фрагментов в базе знаний..."))
-        retrieved_docs = self._vector_db_manager.query(self._current_collection, user_input_stripped, n_results=15)
+        retrieved_docs = self._vector_db_manager.query(self._current_collection, user_input_stripped, n_results=30)
         
         if not retrieved_docs:
             self.apiIntermediateStep.emit(self.tr("Релевантных фрагментов не найдено. Ответ будет основан на истории чата."))
@@ -332,6 +332,18 @@ class ChatModel(QObject):
     def _build_final_context_from_docs(self, docs: List[Dict[str, Any]]) -> str:
         context_parts = []
         included_docs = set()
+        
+        # Логируем извлеченные документы для отладки
+        logger.info(self.tr("Извлеченные релевантные документы для контекста ({0} шт.):").format(len(docs)))
+        for i, doc in enumerate(sorted(docs, key=lambda x: x.get('distance', 1.0))):
+            file_path = doc.get('metadata', {}).get('file_path', self.tr('Неизвестный файл'))
+            doc_type = doc.get('metadata', {}).get('type', 'chunk')
+            distance = doc.get('distance', -1)
+            # Ограничиваем длину содержимого для лога, чтобы не засорять его
+            content_preview = doc.get('document', '')[:100].replace('\n', ' ')
+            logger.info(self.tr("  {0}. Файл: '{1}', Тип: '{2}', Дистанция: {3:.4f}, Содержимое: '{4}...'").format(
+                i + 1, file_path, doc_type, distance, content_preview))
+
         for doc in sorted(docs, key=lambda x: x.get('distance', 1.0)):
             doc_content = doc.get('document', '')
             if doc_content in included_docs: continue
@@ -357,17 +369,39 @@ class ChatModel(QObject):
         
         instructions_part = []
         # Добавляем явное указание модели отвечать на выбранном языке
-        lang_instruction = "на русском языке" if self._app_language == 'ru' else "in English"
+        lang_instruction_phrase = self.tr("на русском языке") if self._app_language == 'ru' else self.tr("in English")
         
-        system_instructions_text = self.tr("**Системные инструкции:**\n{0}").format(self._instructions) if self._instructions else ""
+        # Базовые системные инструкции
+        base_system_instructions = self.tr(
+            "Ты — мой высококвалифицированный ассистент по программированию и анализу кода. "
+            "Тебе предоставлен контекст, который включает в себя:\n"
+            "- Фрагменты кода (chunks) из различных файлов репозитория.\n"
+            "- Краткие саммари (summaries) этих файлов.\n\n"
+            "Твои задачи:\n"
+            "1. Внимательно изучай предоставленный контекст. При запросах о коде, функциях или классах, "
+            "   старайся найти и использовать информацию из *фрагментов кода*.\n"
+            "2. Отвечай на мои вопросы, основываясь строго на предоставленной информации. "
+            "   Если информации в контексте недостаточно для полного ответа, четко сообщи об этом.\n"
+            "3. Если я прошу внести изменения в код, предоставь измененные фрагменты или полные файлы, "
+            "   в зависимости от моего запроса.\n"
+            "4. Всегда объясняй, что и почему ты предлагаешь изменить.\n"
+            "5. Предлагай коммиты в стиле Conventional Commits, когда это уместно.\n"
+        )
         
-        # Формируем инструкцию, добавляя требование по языку
-        # Это будет вставляться в начало диалога с моделью
-        combined_instructions = f"{system_instructions_text}\n\n{self.tr('Пожалуйста, отвечай на все вопросы {0}.').format(lang_instruction)}"
+        # Пользовательские инструкции, если они есть
+        user_instructions_text = self._instructions.strip()
+        if user_instructions_text:
+            base_system_instructions += self.tr("\n\nДополнительные пользовательские инструкции:\n{0}\n").format(user_instructions_text)
+        
+        # Финальная инструкция по языку
+        final_language_instruction = self.tr("Пожалуйста, отвечай на все вопросы {0}.").format(lang_instruction_phrase)
+
+        # Объединяем все инструкции
+        combined_instructions = f"{base_system_instructions.strip()}\n\n{final_language_instruction}"
         
         instructions_part.extend([
             {"role": "user", "parts": [combined_instructions.strip()]},
-            {"role": "model", "parts": [self.tr("OK. Инструкции и язык приняты.")]}
+            {"role": "model", "parts": [self.tr("ОК. Я готов к работе. Инструкции и язык приняты.")]}
         ])
         
         history_to_consider = self._chat_history[:-1] 

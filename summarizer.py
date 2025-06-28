@@ -51,72 +51,105 @@ The response should be only the summary text, without any extra phrases or intro
 # --- НОВЫЙ КЛАСС ДЛЯ РАЗБИЕНИЯ ТЕКСТА ---
 class SimpleTextSplitter:
     """
-    Простая реализация рекурсивного сплиттера текста на фрагменты (чанки).
-    Предназначен для разбиения как обычного текста, так и кода.
+    Реализация рекурсивного сплиттера текста на фрагменты (чанки).
+    Предназначен для разбиения как обычного текста, так и кода,
+    пытаясь сохранить структурные единицы.
     """
-    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 150):
+    def __init__(self, chunk_size: int = 700, chunk_overlap: int = 150): # Немного уменьшены размеры для лучшей фокусировки кода
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        # Приоритет разделителей: от более крупных структур к более мелким
-        self._separators = ["\n\n", "\n", ". ", " ", ""]
+        # Порядок важен: сначала пытаемся разбивать по крупным, осмысленным разделителям
+        # Для кода приоритет отдается определениям функций и классов.
+        self._separators = [
+            "\ndef ",    # Python: Определение функции
+            "\nclass ",   # Python: Определение класса
+            "\n\n",      # Пустая строка (часто отделяет логические блоки/абзацы)
+            "\n",        # Одиночный перевод строки (строка за строкой)
+            " ",         # Пробел (граница слова)
+            "",          # Пустая строка (последний запасной вариант: символ за символом)
+        ]
+        self._length_function = len # Используем длину символов
 
     def split_text(self, text: str) -> List[str]:
         """
-        Разбивает большой текст на чанки заданного размера.
-
-        Args:
-            text: Исходный текст для разбиения.
-
-        Returns:
-            Список текстовых фрагментов (чанков).
+        Разбивает текст на чанки, стараясь сохранить структурные единицы.
+        Использует рекурсивный подход с учетом перекрытия.
         """
-        final_chunks = []
-        # Начинаем с одного большого фрагмента
-        chunks = [text]
-        
-        for sep in self._separators:
-            if not chunks:
-                break
-                
-            new_chunks = []
-            for chunk in chunks:
-                if len(chunk) > self.chunk_size:
-                    if sep:
-                        splits = chunk.split(sep)
-                    else:
-                        splits = [chunk[i:i + self.chunk_size] for i in range(0, len(chunk), self.chunk_size)]
-                    
-                    merged_splits = self._merge_splits(splits, sep)
-                    new_chunks.extend(merged_splits)
-                else:
-                    new_chunks.append(chunk)
-            chunks = new_chunks
-        
-        final_chunks.extend(chunks)
+        final_chunks: List[str] = []
+        self._recursive_split(text, self._separators, final_chunks)
         return final_chunks
 
-    def _merge_splits(self, splits: List[str], separator: str) -> List[str]:
-        """Вспомогательный метод для объединения мелких сплитов в чанки."""
-        docs = []
-        current_doc = []
-        total = 0
-        for s in splits:
-            length = len(s) + (len(separator) if separator else 0)
-            if total + length > self.chunk_size:
-                if total > 0:
-                    docs.append(separator.join(current_doc))
-                
-                while total > self.chunk_overlap:
-                    total -= len(current_doc[0]) + (len(separator) if separator else 0)
-                    current_doc = current_doc[1:]
-            
-            current_doc.append(s)
-            total += length
+    def _recursive_split(self, text_to_split: str, separators: List[str], final_chunks: List[str]):
+        """
+        Внутренняя рекурсивная функция для разбиения текста.
+        """
+        # Базовый случай 1: Нет разделителей или текст пуст
+        if not separators or not text_to_split:
+            if text_to_split:
+                # Если текст все еще существует и нет разделителей,
+                # добавляем его как один чанк или принудительно разбиваем по символам, если он слишком большой.
+                if len(text_to_split) > self.chunk_size:
+                    # Принудительно разбиваем на чанки размера chunk_size,
+                    # сдвигаясь на (chunk_size - chunk_overlap)
+                    for i in range(0, len(text_to_split), self.chunk_size - self.chunk_overlap):
+                        chunk = text_to_split[i:i + self.chunk_size]
+                        final_chunks.append(chunk)
+                else:
+                    final_chunks.append(text_to_split)
+            return
 
-        if current_doc:
-            docs.append(separator.join(current_doc))
-        
-        return docs
+        current_separator = separators[0]
+        remaining_separators = separators[1:]
+
+        # Разбиваем текст по текущему разделителю
+        # Используем rstrip(' ') чтобы не было лишних пробелов перед def/class
+        if current_separator:
+            parts = text_to_split.split(current_separator)
+        else: # Запасной вариант: разбиение посимвольно (для пустой строки-разделителя)
+            parts = list(text_to_split)
+
+        # Комбинируем части обратно в чанки, учитывая chunk_size и chunk_overlap
+        current_chunk_elements: List[str] = []
+        current_chunk_length = 0
+
+        for i, part in enumerate(parts):
+            # Вычисляем "эффективную" длину этой части (включая разделитель, если она не первая в новом чанке)
+            effective_part_length = len(part)
+            if current_chunk_elements and current_separator: # Добавляем длину разделителя, если это не первая часть чанка
+                effective_part_length += len(current_separator)
+
+            # Если добавление этой части сделает текущий чанк слишком большим
+            if current_chunk_length + effective_part_length > self.chunk_size:
+                # Если у нас уже есть что-то в текущем чанке, завершаем его
+                if current_chunk_elements:
+                    chunk = current_separator.join(current_chunk_elements)
+                    # Рекурсивно разбиваем этот чанк, если он все еще слишком большой с помощью следующего разделителя
+                    if len(chunk) > self.chunk_size:
+                        self._recursive_split(chunk, remaining_separators, final_chunks)
+                    else:
+                        final_chunks.append(chunk)
+
+                # Начинаем новый чанк с перекрытием
+                overlap_content = self._get_overlap_content(current_separator.join(current_chunk_elements), self.chunk_overlap)
+                current_chunk_elements = [overlap_content] if overlap_content else []
+                current_chunk_length = len(overlap_content) if overlap_content else 0
+            
+            # Добавляем текущую часть к новому или существующему чанку
+            current_chunk_elements.append(part)
+            current_chunk_length += effective_part_length
+
+        # Обрабатываем последний оставшийся чанк
+        if current_chunk_elements:
+            chunk = current_separator.join(current_chunk_elements)
+            if len(chunk) > self.chunk_size:
+                self._recursive_split(chunk, remaining_separators, final_chunks)
+            else:
+                final_chunks.append(chunk)
+
+    def _get_overlap_content(self, text: str, overlap: int) -> str:
+        """Вспомогательная функция для получения содержимого для перекрытия."""
+        # Для перекрытия лучше брать с конца, чтобы сохранить контекст
+        return text[-overlap:] if len(text) > overlap else text
 
 
 # --- ПЕРЕРАБОТАННЫЙ WORKER ---
