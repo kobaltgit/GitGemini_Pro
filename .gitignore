@@ -62,3 +62,6 @@ __pycache__/
 
 # Кэш моделей Sentence Transformers (на всякий случай)
 .cache/
+
+# Игнорировать папку с ONNX-моделью
+onnx_model/

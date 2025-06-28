@@ -271,11 +271,19 @@ class ChatModel(QObject):
     # --- НОВЫЙ СЛОТ для приема данных от воркера ---
     @Slot(list, list)
     def _on_documents_for_db_ready(self, documents: List[str], metadatas: List[Dict[str, Any]]):
-        if self._current_collection:
+        """
+        Слот, который принимает пакет текстов и метаданных от SummarizerWorker.
+        Вызывает VectorDBManager для генерации эмбеддингов и добавления в базу.
+        """
+        if self._current_collection is not None and self._vector_db_manager:
+            logger.debug(f"Получено {len(documents)} документов от воркера для добавления в БД.")
             self._vector_db_manager.add_documents_batch(self._current_collection, documents, metadatas)
             self._mark_dirty()
         else:
-            logger.error("Получены документы для БД, но текущая коллекция не установлена!")
+            if self._current_collection is None:
+                logger.error("Получены документы для БД, но текущая коллекция не установлена!")
+            if self._vector_db_manager is None:
+                logger.error("Получены документы для БД, но VectorDBManager не инициализирован!")
 
     @Slot(int, int)
     def _on_analysis_progress(self, processed: int, total: int):
