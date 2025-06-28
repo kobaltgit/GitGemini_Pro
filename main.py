@@ -19,7 +19,13 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import (
     Qt, Slot, QUrl, QTimer, QCoreApplication, QFileInfo, QTranslator, QLocale
 )
-from PySide6.QtGui import QAction, QKeySequence, QIcon, QFont
+from PySide6.QtGui import QAction, QKeySequence, QIcon, QFont, QActionGroup
+
+try:
+    from dotenv import load_dotenv, set_key
+except ImportError:
+    print("КРИТИЧЕСКАЯ ОШИБКА: Модуль python-dotenv не найден! Установите его: pip install python-dotenv")
+    sys.exit(1)
 
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -59,8 +65,8 @@ class HelpDialog(QDialog):
         script_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Пытаемся загрузить локализованный файл справки
-        locale_name = QLocale.system().name().split('_')[0] # 'ru_RU' -> 'ru'
-        help_file = f"help_content_{locale_name}.html"
+        current_app_lang = os.getenv('APP_LANGUAGE', QLocale.system().name().split('_')[0])
+        help_file = f"help_content_{current_app_lang}.html"
         html_file_path = os.path.join(script_dir, help_file)
 
         if not os.path.exists(html_file_path):
@@ -89,6 +95,16 @@ class MainWindow(QMainWindow):
 
         self.summaries_window: Optional[SummariesWindow] = None
 
+        self._dotenv_path = self._get_resource_path('.env')
+        # Убедимся, что файл .env существует
+        if not os.path.exists(self._dotenv_path):
+            try:
+                with open(self._dotenv_path, 'w') as f:
+                    pass # Просто создаем пустой файл
+            except OSError as e:
+                self.logger.error(f"Не удалось создать файл .env: {e}")
+                # Это некритично для запуска, но сохранение языка не будет работать
+        
         self._templates_file_path = self._get_resource_path(TEMPLATES_FILENAME)
         self.instruction_templates: Dict[str, str] = {}
         self._load_instruction_templates()
@@ -330,34 +346,51 @@ class MainWindow(QMainWindow):
     def _create_language_menu(self):
         """Создает меню для выбора языка."""
         lang_menu = self.menuBar().addMenu(self.tr("&Язык"))
-        
-        # Пример добавления языков. В будущем это можно будет делать динамически.
+
+        # Группа для взаимоисключающих действий
+        lang_group = QActionGroup(self)
+        lang_group.setExclusive(True)
+
         ru_action = QAction(self.tr("Русский"), self)
         ru_action.setCheckable(True)
         ru_action.triggered.connect(lambda: self._switch_language('ru'))
         lang_menu.addAction(ru_action)
+        lang_group.addAction(ru_action)
 
         en_action = QAction(self.tr("English"), self)
         en_action.setCheckable(True)
         en_action.triggered.connect(lambda: self._switch_language('en'))
         lang_menu.addAction(en_action)
+        lang_group.addAction(en_action)
 
-        # Устанавливаем текущий язык
-        current_locale = QLocale.system().name().split('_')[0]
-        if current_locale == 'ru':
+        # Устанавливаем текущий язык на основе загруженной настройки
+        # (os.getenv вернет None если переменная не найдена)
+        current_lang = os.getenv('APP_LANGUAGE', QLocale.system().name().split('_')[0])
+        if current_lang == 'ru':
             ru_action.setChecked(True)
         else:
             en_action.setChecked(True)
 
     @Slot(str)
     def _switch_language(self, lang_code: str):
-        """Слот для переключения языка."""
-        QMessageBox.information(
-            self,
-            self.tr("Смена языка"),
-            self.tr("Язык будет изменен после перезапуска приложения.")
-        )
-        # Здесь в будущем можно будет сохранять выбор в файл настроек.
+        """Слот для переключения языка и сохранения выбора в .env."""
+        try:
+            # Используем set_key для сохранения настройки в .env
+            set_key(self._dotenv_path, "APP_LANGUAGE", lang_code)
+            self.logger.info(f"Язык приложения установлен на '{lang_code}' и сохранен в {self._dotenv_path}")
+            
+            QMessageBox.information(
+                self,
+                self.tr("Смена языка"),
+                self.tr("Язык будет изменен после перезапуска приложения.")
+            )
+        except Exception as e:
+            self.logger.error(f"Не удалось сохранить настройку языка в файл .env: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                self.tr("Ошибка сохранения"),
+                self.tr("Не удалось сохранить настройку языка. Убедитесь, что у приложения есть права на запись в файл .env.")
+            )
 
     def _connect_signals(self):
         # Команды от пользователя
@@ -582,17 +615,17 @@ class MainWindow(QMainWindow):
         self.branch_combobox.blockSignals(False)
 
     # --- Методы для работы с шаблонами ---
-    # --- Методы для работы с шаблонами ---
     def _load_instruction_templates(self):
         base_filename = "instruction_templates.json"
-        locale_lang = QLocale.system().name().split('_')[0]
+        # Используем язык, загруженный из .env при старте приложения
+        current_app_lang = os.getenv('APP_LANGUAGE', QLocale.system().name().split('_')[0])
 
         # Для русского языка используется файл по умолчанию.
         # Для других языков ищем файл с суффиксом, например, _en.
         templates_to_load = base_filename
-        if locale_lang != 'ru':
+        if current_app_lang != 'ru': # Теперь используем current_app_lang
             base, ext = os.path.splitext(base_filename)
-            localized_filename = f"{base}_{locale_lang}{ext}"
+            localized_filename = f"{base}_{current_app_lang}{ext}"
             localized_path = self._get_resource_path(localized_filename)
             if os.path.exists(localized_path):
                 templates_to_load = localized_filename
@@ -752,30 +785,53 @@ def setup_logging():
     
     root_logger.info("Система логирования настроена.")
 
+def get_base_path():
+    """Определяет базовый путь для ресурсов и .env файла."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+
 def main():
     QCoreApplication.setOrganizationName("Kobalt")
     QCoreApplication.setApplicationName("GitGeminiPro")
     os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-gpu"
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling)
+
+    # --- Загрузка .env и настройка языка ---
+    base_path = get_base_path()
+    dotenv_path = os.path.join(base_path, '.env')
+
+    # Создаем .env, если его нет
+    if not os.path.exists(dotenv_path):
+        with open(dotenv_path, 'w') as f:
+            pass # Просто создаем пустой файл
+    
+    load_dotenv(dotenv_path=dotenv_path)
+
+    # Получаем язык из .env или из системы
+    app_lang = os.getenv('APP_LANGUAGE', QLocale.system().name().split('_')[0])
     
     app = QApplication(sys.argv)
     
     # --- Логика перевода ---
     translator = QTranslator()
-    # Определяем текущую локаль системы
-    locale = QLocale.system()
-    # Ищем файл перевода в директории 'translations'
-    translations_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'translations')
+    # Используем язык, полученный ранее
+    locale = QLocale(app_lang) 
+    translations_path = os.path.join(base_path, 'translations')
     if translator.load(locale, "app", "_", translations_path):
         app.installTranslator(translator)
+        print(f"Файл перевода для локали '{app_lang}' успешно загружен.")
     else:
-        logging.warning(f"Не удалось загрузить файл перевода для локали {locale.name()} из {translations_path}")
+        # Логирование еще не настроено, используем print
+        print(f"Не удалось загрузить файл перевода для локали '{locale.name()}' из {translations_path}")
     
     setup_logging()
     
     logger = logging.getLogger(__name__)
     logger.info("="*20 + " Запуск приложения GitGemini Pro " + "="*20)
-    
+    logger.info(f"Используемый язык: {app_lang}")
+
     chat_model = ChatModel()
     chat_view_model = ChatViewModel(chat_model)
     window = MainWindow(chat_view_model)
