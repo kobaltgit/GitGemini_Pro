@@ -163,6 +163,49 @@ class GitHubManager(QObject):
 
         logger.info(self.tr("Анализ дерева завершен. Найдено подходящих файлов: {0}. Пропущено: {1}.").format(len(filtered_files), len(skipped_info)))
         return filtered_files, skipped_info
+    
+    def get_repo_file_tree_text(self, repo: Repository, branch_name: str, ignored_dirs: Set[str] = DEFAULT_IGNORED_DIRS) -> str:
+        """
+        Получает строковое представление дерева файлов репозитория, похожее на вывод 'tree'.
+        """
+        if not repo:
+            return self.tr("Ошибка: Репозиторий не предоставлен.")
+            
+        logger.info(self.tr("Получение текстового представления дерева файлов для '{0}' в ветке '{1}'...").format(repo.full_name, branch_name))
+        try:
+            branch = repo.get_branch(branch_name)
+            tree_elements = repo.get_git_tree(branch.commit.sha, recursive=True).tree
+            
+            paths = [element.path for element in tree_elements if not any(part in ignored_dirs for part in element.path.split('/'))]
+            paths.sort()
+
+            tree_dict = {}
+            for path in paths:
+                parts = path.split('/')
+                current_level = tree_dict
+                for part in parts:
+                    if part not in current_level:
+                        current_level[part] = {}
+                    current_level = current_level[part]
+
+            def build_tree_string(d, indent=''):
+                s = ''
+                items = sorted(d.keys())
+                for i, key in enumerate(items):
+                    connector = '└── ' if i == len(items) - 1 else '├── '
+                    s += indent + connector + key + '\n'
+                    if d[key]:
+                        extension = '    ' if i == len(items) - 1 else '│   '
+                        s += build_tree_string(d[key], indent + extension)
+                return s
+
+            project_name = repo.name
+            return f"{project_name}/\n" + build_tree_string(tree_dict)
+
+        except Exception as e:
+            msg = self.tr("Не удалось сгенерировать дерево файлов: {0}").format(e)
+            logger.error(msg)
+            return msg
 
     def get_file_content(self, repo: Repository, file_path: str, branch_name: str) -> Optional[str]:
         """

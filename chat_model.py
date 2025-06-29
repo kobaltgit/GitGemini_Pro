@@ -2,6 +2,7 @@
 
 import os
 import re
+import json
 import logging
 import hashlib
 from typing import Optional, List, Dict, Any, Tuple
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 CONTEXT_WINDOW_LIMIT = 1048576
 
 class GeminiWorker(QObject):
-    response_received = Signal(str)
+    response_received = Signal(str, list) # Добавляем original_prompt
     error_occurred = Signal(str)
     finished_work = Signal()
 
@@ -64,7 +65,8 @@ class GeminiWorker(QObject):
                 return
 
             if hasattr(response, "text") and response.text:
-                self.response_received.emit(response.text)
+                # Передаем оригинальный промпт вместе с ответом
+                self.response_received.emit(response.text, self.prompt_parts)
             else:
                 reason = self.tr("Неизвестно")
                 if response.prompt_feedback and response.prompt_feedback.block_reason:
@@ -121,6 +123,7 @@ class ChatModel(QObject):
         self._available_branches: List[str] = []
         self._chat_history: List[Dict[str, Any]] = []
         self._file_summaries: Dict[str, str] = {}
+        self._repo_file_tree: Optional[str] = None # НОВОЕ ПОЛЕ
         self._current_session_filepath: Optional[str] = None
         self._is_dirty: bool = False
         
@@ -235,6 +238,10 @@ class ChatModel(QObject):
         files_to_process, _ = self._github_manager.get_repo_file_tree(self._repo_object, self._repo_branch, self._extensions)
         if not files_to_process:
             self.analysisError.emit(self.tr("В этой ветке не найдено файлов с указанными расширениями.")); return
+        
+        # Получаем и сохраняем дерево файлов
+        self.apiIntermediateStep.emit(self.tr("Получение дерева файлов репозитория..."))
+        self._repo_file_tree = self._github_manager.get_repo_file_tree_text(self._repo_object, self._repo_branch)
 
         self._file_summaries = {}; self.fileSummariesChanged.emit(self._file_summaries)
         self._mark_dirty(); self.analysisStarted.emit()
@@ -244,7 +251,7 @@ class ChatModel(QObject):
             github_manager=self._github_manager, repo=self._repo_object,
             branch_name=self._repo_branch, files_to_summarize=files_to_process,
             gemini_api_key=self._gemini_api_key, model_name=self._model_name,
-            app_lang=self._app_language # Передаем язык в воркер
+            app_lang=self._app_language
         )
         self._summarizer_worker.file_summarized.connect(self._on_file_summarized)
         self._summarizer_worker.documents_for_db_ready.connect(self._on_documents_for_db_ready)
@@ -307,16 +314,27 @@ class ChatModel(QObject):
         if not final_prompt_parts:
             self.apiErrorOccurred.emit(self.tr("Ошибка: Не удалось сформировать запрос. Слишком большой объем данных.")); self.apiRequestFinished.emit(); return
 
-        self._gemini_worker = GeminiWorker(self._gemini_model, final_prompt_parts, self._max_output_tokens)
-        thread = QThread(); self._gemini_worker.moveToThread(thread)
-        self._gemini_worker.response_received.connect(self._handle_final_api_response)
+        self._start_gemini_worker(final_prompt_parts)
+
+    def _start_gemini_worker(self, prompt: List[Dict[str, Any]]):
+        """Запускает GeminiWorker с заданным промптом."""
+        self._gemini_worker = GeminiWorker(self._gemini_model, prompt, self._max_output_tokens)
+        thread = QThread()
+        self._gemini_worker.moveToThread(thread)
+        # Отключаем старый обработчик, чтобы избежать дублирования
+        try: self._gemini_worker.response_received.disconnect(self._handle_final_api_response)
+        except (RuntimeError, TypeError): pass
+        # Подключаем новый, универсальный обработчик
+        self._gemini_worker.response_received.connect(self._on_api_response_received)
+        
         self._gemini_worker.error_occurred.connect(self._handle_final_api_error)
         thread.started.connect(self._gemini_worker.run)
         self._gemini_worker.finished_work.connect(thread.quit)
         self._gemini_worker.finished_work.connect(self._handle_worker_finished)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_request_thread)
-        thread.start(); self._current_request_thread = thread
+        thread.start()
+        self._current_request_thread = thread
         
     def _is_ready_for_request(self) -> bool:
         if self._current_request_thread and self._current_request_thread.isRunning():
@@ -333,13 +351,11 @@ class ChatModel(QObject):
         context_parts = []
         included_docs = set()
         
-        # Логируем извлеченные документы для отладки
         logger.info(self.tr("Извлеченные релевантные документы для контекста ({0} шт.):").format(len(docs)))
         for i, doc in enumerate(sorted(docs, key=lambda x: x.get('distance', 1.0))):
             file_path = doc.get('metadata', {}).get('file_path', self.tr('Неизвестный файл'))
             doc_type = doc.get('metadata', {}).get('type', 'chunk')
             distance = doc.get('distance', -1)
-            # Ограничиваем длину содержимого для лога, чтобы не засорять его
             content_preview = doc.get('document', '')[:100].replace('\n', ' ')
             logger.info(self.tr("  {0}. Файл: '{1}', Тип: '{2}', Дистанция: {3:.4f}, Содержимое: '{4}...'").format(
                 i + 1, file_path, doc_type, distance, content_preview))
@@ -368,41 +384,48 @@ class ChatModel(QObject):
         current_tokens = 0
         
         instructions_part = []
-        # Добавляем явное указание модели отвечать на выбранном языке
         lang_instruction_phrase = self.tr("на русском языке") if self._app_language == 'ru' else self.tr("in English")
         
-        # Базовые системные инструкции
         base_system_instructions = self.tr(
             "Ты — мой высококвалифицированный ассистент по программированию и анализу кода. "
-            "Тебе предоставлен контекст, который включает в себя:\n"
-            "- Фрагменты кода (chunks) из различных файлов репозитория.\n"
-            "- Краткие саммари (summaries) этих файлов.\n\n"
-            "Твои задачи:\n"
-            "1. Внимательно изучай предоставленный контекст. При запросах о коде, функциях или классах, "
-            "   старайся найти и использовать информацию из *фрагментов кода*.\n"
-            "2. Отвечай на мои вопросы, основываясь строго на предоставленной информации. "
-            "   Если информации в контексте недостаточно для полного ответа, четко сообщи об этом.\n"
-            "3. Если я прошу внести изменения в код, предоставь измененные фрагменты или полные файлы, "
-            "   в зависимости от моего запроса.\n"
-            "4. Всегда объясняй, что и почему ты предлагаешь изменить.\n"
-            "5. Предлагай коммиты в стиле Conventional Commits, когда это уместно.\n"
+            "Тебе предоставлен контекст, который включает:\n"
+            "1. Полное дерево файлов репозитория.\n"
+            "2. Фрагменты кода (chunks) и краткие описания (summaries) некоторых файлов, которые я счел релевантными.\n\n"
+            "Твоя задача — отвечать на мои вопросы о коде.\n\n"
+            "**КРИТИЧЕСКИ ВАЖНОЕ ПРАВИЛО:**\n"
+            "Если для ответа на вопрос тебе не хватает информации из предоставленных фрагментов, "
+            "но ты видишь нужный файл в **дереве файлов**, ты должен запросить его содержимое. "
+            "Для этого твой ответ должен быть ТОЛЬКО JSON-объектом строго следующего формата:\n"
+            "```json\n"
+            '{{"action": "request_file", "file_path": "полный/путь/к/файлу.py"}}\n'
+            "```\n"
+            "Не добавляй никакого другого текста или объяснений, кроме этого JSON. Я автоматически обработаю твой запрос, "
+            "предоставлю тебе содержимое файла, и ты сможешь дать окончательный ответ на мой первоначальный вопрос.\n\n"
+            "Если же информации достаточно, или ты не уверен, какой файл нужен, или вопрос не о коде, "
+            "отвечай как обычно, основываясь на предоставленном контексте. "
+            "Всегда объясняй, что и почему ты предлагаешь изменить. "
+            "Предлагай коммиты в стиле Conventional Commits, когда это уместно."
         )
-        
-        # Пользовательские инструкции, если они есть
+
         user_instructions_text = self._instructions.strip()
         if user_instructions_text:
             base_system_instructions += self.tr("\n\nДополнительные пользовательские инструкции:\n{0}\n").format(user_instructions_text)
         
-        # Финальная инструкция по языку
-        final_language_instruction = self.tr("Пожалуйста, отвечай на все вопросы {0}.").format(lang_instruction_phrase)
-
-        # Объединяем все инструкции
+        final_language_instruction = self.tr("Пожалуйста, отвечай на все вопросы {0}, если не указано иное.").format(lang_instruction_phrase)
         combined_instructions = f"{base_system_instructions.strip()}\n\n{final_language_instruction}"
         
         instructions_part.extend([
             {"role": "user", "parts": [combined_instructions.strip()]},
-            {"role": "model", "parts": [self.tr("ОК. Я готов к работе. Инструкции и язык приняты.")]}
+            {"role": "model", "parts": [self.tr("ОК. Я готов к работе. Правила запроса файлов и язык приняты.")]}
         ])
+        
+        # Добавляем дерево файлов в контекст
+        if self._repo_file_tree:
+            file_tree_part = [
+                {"role": "user", "parts": [self.tr("**Полное дерево файлов проекта:**\n```\n{0}\n```").format(self._repo_file_tree)]},
+                {"role": "model", "parts": [self.tr("OK. Дерево файлов проекта получено.")]}
+            ]
+            instructions_part.extend(file_tree_part)
         
         history_to_consider = self._chat_history[:-1] 
         last_user_message = self._chat_history[-1]
@@ -421,7 +444,7 @@ class ChatModel(QObject):
         if context_str:
             context_wrapper = [
                 {"role": "user", "parts": [self.tr("**Контекст из релевантных фрагментов проекта:**\n{0}").format(context_str)]},
-                {"role": "model", "parts": [self.tr("OK. Контекст проекта получен.")]}
+                {"role": "model", "parts": [self.tr("OK. Контекст из фрагментов получен.")]}
             ]
             try:
                 context_tokens = self._gemini_model.count_tokens(context_wrapper).total_tokens
@@ -446,6 +469,74 @@ class ChatModel(QObject):
         self.tokenCountUpdated.emit(current_tokens, CONTEXT_WINDOW_LIMIT)
         return final_prompt_parts
     
+    @Slot(str, list)
+    def _on_api_response_received(self, response_text: str, original_prompt: List[Dict[str, Any]]):
+        """Универсальный обработчик ответа от API. Либо обрабатывает JSON-запрос, либо отдает текст."""
+        # Пытаемся распарсить как JSON
+        try:
+            # Ищем JSON внутри ```json ... ```
+            match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+                data = json.loads(json_str)
+                action = data.get("action")
+                file_path = data.get("file_path")
+
+                if action == "request_file" and file_path:
+                    logger.info(f"ИИ запросил файл: {file_path}")
+                    self.apiIntermediateStep.emit(self.tr("ИИ запросил файл: {0}. Получаю содержимое...").format(file_path))
+                    self._handle_file_request(file_path, original_prompt)
+                    return
+            
+            # Если не нашли в ```json```, пробуем парсить строку напрямую
+            data = json.loads(response_text)
+            action = data.get("action")
+            file_path = data.get("file_path")
+            if action == "request_file" and file_path:
+                logger.info(f"ИИ запросил файл: {file_path}")
+                self.apiIntermediateStep.emit(self.tr("ИИ запросил файл: {0}. Получаю содержимое...").format(file_path))
+                self._handle_file_request(file_path, original_prompt)
+                return
+
+        except (json.JSONDecodeError, AttributeError):
+            # Это не JSON-запрос, обрабатываем как обычный текстовый ответ
+            self._handle_final_api_response(response_text)
+
+    def _handle_file_request(self, file_path: str, original_prompt: List[Dict[str, Any]]):
+        """Обрабатывает JSON-запрос файла от ИИ."""
+        if not self._github_manager or not self._repo_object or not self._repo_branch:
+            self.apiErrorOccurred.emit(self.tr("Ошибка: Невозможно получить файл, нет данных о репозитории."))
+            return
+
+        content = self._github_manager.get_file_content(self._repo_object, file_path, self._repo_branch)
+
+        if content is None:
+            error_msg = self.tr("Не удалось получить содержимое запрошенного файла '{0}'. Возможно, он не существует или доступ запрещен.").format(file_path)
+            self.apiErrorOccurred.emit(error_msg)
+            self.apiRequestFinished.emit()
+            return
+        
+        # Проверка размера файла (например, 200КБ лимит)
+        if len(content) > 200 * 1024:
+            error_msg = self.tr("Запрошенный файл '{0}' слишком большой ({1:.1f} KB). Обработка прервана.").format(file_path, len(content)/1024)
+            self.apiErrorOccurred.emit(error_msg)
+            self.apiRequestFinished.emit()
+            return
+
+        self.apiIntermediateStep.emit(self.tr("Файл '{0}' получен. Формирую новый запрос к ИИ...").format(file_path))
+
+        # Формируем новый контекст с содержимым файла
+        file_content_part = {
+            "role": "user",
+            "parts": [self.tr("Вот запрошенное содержимое файла '{0}':\n\n```\n{1}\n```\n\nТеперь, пожалуйста, ответь на мой первоначальный вопрос, используя эту новую информацию.").format(file_path, content)]
+        }
+        
+        # Вставляем новый контекст перед последним сообщением пользователя
+        new_prompt = original_prompt[:-1] + [file_content_part] + original_prompt[-1:]
+        
+        # Перезапускаем воркер с новым, дополненным промптом
+        self._start_gemini_worker(new_prompt)
+
     @Slot(str)
     def _handle_final_api_response(self, response_text: str):
         self.add_model_response(response_text); self.apiResponseReceived.emit(response_text)
@@ -531,6 +622,7 @@ class ChatModel(QObject):
 
     def _clear_analysis_data(self):
         self._file_summaries = {}
+        self._repo_file_tree = None # Сбрасываем дерево файлов
         if self._current_collection:
              collection_name = self._current_collection.name
              logger.info(f"Очистка данных анализа: удаление коллекции '{collection_name}'")
@@ -547,11 +639,9 @@ class ChatModel(QObject):
 
         meta, msgs, summaries = loaded_data
         
-        # --- Прямое обновление состояния без вызова сеттеров, которые сбрасывают данные ---
-        
-        # 1. Загружаем историю, саммари и настройки
         self._chat_history = msgs
-        self._file_summaries = summaries # <- Сохраняем загруженные саммари
+        self._file_summaries = summaries
+        self._repo_file_tree = meta.get("repo_file_tree") # Загружаем дерево файлов
         self._model_name = meta.get("model_name", "gemini-1.5-flash-latest")
         self._max_output_tokens = meta.get("max_output_tokens", 65536)
         self._extensions = tuple(p.strip() for p in meta.get("extensions", ".py").split())
@@ -559,17 +649,14 @@ class ChatModel(QObject):
         self._current_session_filepath = filepath
         self._is_dirty = False
 
-        # 2. Настраиваем путь к векторной БД
         self._vector_db_path = meta.get("vector_db_path")
         if not self._vector_db_path:
             self._vector_db_path = filepath.replace(db_manager.SESSION_EXTENSION, "_vectordb")
         self._vector_db_manager.set_db_path(self._vector_db_path)
 
-        # 3. Устанавливаем данные репозитория напрямую
         self._repo_url = meta.get("repo_url")
         self._repo_branch = meta.get("repo_branch")
         
-        # 4. Получаем объект репозитория и ветки, но без сброса данных
         if self._repo_url and self._github_manager:
             repo_data = self._github_manager.get_repo(self._repo_url)
             if repo_data:
@@ -584,17 +671,15 @@ class ChatModel(QObject):
         else:
             self._repo_object, self._available_branches = None, []
 
-        # 5. Восстанавливаем коллекцию БД
         if self._repo_url and self._repo_branch:
             collection_name = self._generate_collection_name(self._repo_url, self._repo_branch)
             self._current_collection = self._vector_db_manager.create_or_get_collection(collection_name)
         else:
             self._current_collection = None
 
-        # --- Теперь, когда все состояние восстановлено, отправляем сигналы в UI ---
-        self.sessionLoaded.emit() # Сообщаем ViewModel, что нужно обновить все поля
+        self.sessionLoaded.emit() 
         self.repoDataChanged.emit(self._repo_url, self._repo_branch, self._available_branches)
-        self.fileSummariesChanged.emit(self._file_summaries) # <- Отправляем загруженные саммари
+        self.fileSummariesChanged.emit(self._file_summaries)
         self._update_token_count()
         self.statusMessage.emit(self.tr("Сессия '{0}' загружена.").format(os.path.basename(filepath)), 5000)
 
@@ -608,9 +693,9 @@ class ChatModel(QObject):
         
         metadata = {
             "repo_url": self._repo_url, "repo_branch": self._repo_branch,
-            "vector_db_path": self._vector_db_path, "model_name": self._model_name, 
-            "max_output_tokens": self._max_output_tokens, "extensions": " ".join(self._extensions), 
-            "instructions": self._instructions
+            "vector_db_path": self._vector_db_path, "repo_file_tree": self._repo_file_tree,
+            "model_name": self._model_name, "max_output_tokens": self._max_output_tokens, 
+            "extensions": " ".join(self._extensions), "instructions": self._instructions
         }
         
         if db_manager.save_session_data(save_path, metadata, self._chat_history, self._file_summaries):

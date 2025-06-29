@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS metadata (
     repo_branch TEXT,
     -- НОВОЕ ПОЛЕ для хранения пути к векторной базе данных
     vector_db_path TEXT,
+    repo_file_tree TEXT,
     model_name TEXT,
     max_output_tokens INTEGER,
     extensions TEXT,
@@ -99,6 +100,7 @@ def _update_db_schema(conn: sqlite3.Connection):
     columns_to_add = [
         ("metadata", "repo_branch", "TEXT"),
         ("metadata", "vector_db_path", "TEXT"),
+        ("metadata", "repo_file_tree", "TEXT"),
         ("messages", "excluded_from_api", "BOOLEAN NOT NULL DEFAULT 0")
     ]
 
@@ -198,11 +200,11 @@ def save_session_data(
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO metadata (
-                        id, repo_url, repo_branch, vector_db_path, model_name, 
+                        id, repo_url, repo_branch, vector_db_path, repo_file_tree, model_name, 
                         max_output_tokens, extensions, instructions, created_at, last_saved_at
                     )
                     VALUES (
-                        1, :repo_url, :repo_branch, :vector_db_path, :model_name, 
+                        1, :repo_url, :repo_branch, :vector_db_path, :repo_file_tree, :model_name, 
                         :max_output_tokens, :extensions, :instructions, :created_at, :last_saved_at
                     )
                     """,
