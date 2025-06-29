@@ -111,7 +111,6 @@ class LogFileReaderWorker(QObject):
         else:
             logger.warning(self.tr("Файл лога не найден при запуске: {0}. Ожидание создания.").format(os.path.basename(self._log_file_path)))
 
-
     def _read_all_current_data(self):
         """
         Открывает файл, читает все доступные новые данные с позиции _file_size_at_last_read,
@@ -119,7 +118,7 @@ class LogFileReaderWorker(QObject):
         """
         if not self._is_running: return
         if not os.path.exists(self._log_file_path):
-            # logger.debug(self.tr("Попытка чтения, но файл лога '{0}' не существует.").format(self._log_file_path)) # Potential trigger
+            # logger.debug(self.tr("Попытка чтения, но файл лога '{0}' не существует.").format(self._log_file_path))
             self._file_size_at_last_read = 0 # Если файл исчез, сбрасываем позицию
             return
 
@@ -140,7 +139,7 @@ class LogFileReaderWorker(QObject):
             # Установка кодировки UTF-8, используя QStringConverter
             try:
                 stream.setEncoding(QStringConverter.Encoding.Utf8)
-                # logger.debug("Установлена кодировка UTF-8 для QTextStream через QStringConverter.") # Potential trigger
+                # logger.debug("Установлена кодировка UTF-8 для QTextStream через QStringConverter.")
             except AttributeError as e:
                 # Если Utf8 недоступен через QStringConverter.Encoding
                 error_msg_encoding = self.tr("Не удалось установить кодировку UTF-8 через QStringConverter.Encoding. Ошибка: {0}").format(e)
@@ -170,8 +169,8 @@ class LogFileReaderWorker(QObject):
                 # Файл увеличился или не изменился, или это первое чтение.
                 # Начинаем чтение с последней сохраненной позиции.
                 file.seek(current_pos_before_read)
-                # logger.debug(self.tr("Перемещение к сохраненค์{0} в файле лога '{1}'.").format( # Potential trigger
-                #     current_pos_before_read, os.path.basename(self._log_file_path)))
+                # logger.debug(self.tr("Перемещение к сохраненной позиции {0} в файле лога '{1}'.").format(
+                #    current_pos_before_read, os.path.basename(self._log_file_path)))
 
             # Читаем все доступные новые строки
             lines_read = 0
@@ -187,13 +186,12 @@ class LogFileReaderWorker(QObject):
 
             # Обновляем позицию после чтения
             self._file_size_at_last_read = file.pos()
-            if lines_read > 0:
-                 # logger.debug(self.tr("Прочитано {0} новых строк из '{1}'. Новая позиция: {2}").format(lines_read, os.path.basename(self._log_file_path), self._file_size_at_last_read)) # Potential trigger
-                 pass # Избегаем логирования здесь
+            # if lines_read > 0:
+            #      # logger.debug(...) - REMOVED
+            #      pass
             # else:
-                 # logger.debug(self.tr("Чтение завершено. Новая позиция в файле '{0}': {1}").format( # Potential trigger
-                 #    os.path.basename(self._log_file_path), self._file_size_at_last_read))
-                 # pass # Избегаем логирования здесь
+            #      # logger.debug(...) - REMOVED
+            #      pass
 
         except Exception as e:
             error_msg = self.tr("Ошибка при чтении данных из лог-файла '{0}': {1}").format(os.path.basename(self._log_file_path), e)
@@ -203,7 +201,7 @@ class LogFileReaderWorker(QObject):
             # Всегда закрываем файл в конце операции чтения
             if file and file.isOpen():
                 file.close()
-                # logger.debug(f"Log file {os.path.basename(self._log_file_path)} closed after reading.") # Potential trigger
+                # logger.debug(f"Log file {os.path.basename(self._log_file_path)} closed after reading.")
 
 
     @Slot(str)

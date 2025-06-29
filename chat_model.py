@@ -147,6 +147,7 @@ class ChatModel(QObject):
         self._gemini_model: Optional[genai.GenerativeModel] = None
         self._gemini_worker: Optional[GeminiWorker] = None
         self._summarizer_worker: Optional[SummarizerWorker] = None
+        self._summarizer_thread: Optional[QThread] = None
         self._github_manager: Optional[GitHubManager] = None
         self._current_request_thread: Optional[QThread] = None
 
@@ -225,7 +226,7 @@ class ChatModel(QObject):
         if not all([self._github_manager, self._repo_object, self._repo_branch, self._gemini_model]):
             self.analysisError.emit(self.tr("Не все компоненты готовы к анализу (репозиторий, ветка, модель Gemini)."))
             return
-        if self._summarizer_worker and self._summarizer_worker.isRunning():
+        if self._summarizer_thread and self._summarizer_thread.isRunning():
             self.statusMessage.emit(self.tr("Анализ уже запущен."), 3000); return
 
         collection_name = self._generate_collection_name(self._repo_url, self._repo_branch)
@@ -247,22 +248,42 @@ class ChatModel(QObject):
         self._mark_dirty(); self.analysisStarted.emit()
         self.statusMessage.emit(self.tr("Начат анализ {0} файлов в '{1}'...").format(len(files_to_process), self._repo_branch), 0)
 
+        # --- НОВЫЙ СПОСОБ ЗАПУСКА ВОРКЕРА ---
+        self._summarizer_thread = QThread()
         self._summarizer_worker = SummarizerWorker(
             github_manager=self._github_manager, repo=self._repo_object,
             branch_name=self._repo_branch, files_to_summarize=files_to_process,
             gemini_api_key=self._gemini_api_key, model_name=self._model_name,
             app_lang=self._app_language
         )
+        self._summarizer_worker.moveToThread(self._summarizer_thread)
+
+        # Подключение сигналов
         self._summarizer_worker.file_summarized.connect(self._on_file_summarized)
         self._summarizer_worker.documents_for_db_ready.connect(self._on_documents_for_db_ready)
         self._summarizer_worker.progress_updated.connect(self._on_analysis_progress)
         self._summarizer_worker.error_occurred.connect(self.analysisError)
         self._summarizer_worker.finished.connect(self._on_analysis_finished)
-        self._summarizer_worker.start()
+        
+        # Связываем запуск/остановку потока
+        self._summarizer_thread.started.connect(self._summarizer_worker.run)
+        self._summarizer_worker.finished.connect(self._summarizer_thread.quit)
+        self._summarizer_thread.finished.connect(self._summarizer_worker.deleteLater)
+        self._summarizer_thread.finished.connect(self._summarizer_thread.deleteLater)
+        self._summarizer_thread.finished.connect(self._cleanup_summarizer_thread)
+
+        self._summarizer_thread.start()
 
     def cancel_analysis(self):
-        if self._summarizer_worker and self._summarizer_worker.isRunning():
-            self._summarizer_worker.cancel(); self.statusMessage.emit(self.tr("Отмена анализа..."), 3000)
+        if self._summarizer_thread and self._summarizer_thread.isRunning():
+            if self._summarizer_worker:
+                self._summarizer_worker.cancel()
+            self.statusMessage.emit(self.tr("Отмена анализа..."), 3000)
+
+    def _cleanup_summarizer_thread(self):
+        logger.debug("Очистка ссылок на воркер и поток анализа.")
+        self._summarizer_worker = None
+        self._summarizer_thread = None
             
     @Slot(str, str)
     def _on_file_summarized(self, file_path: str, summary: str):
@@ -287,7 +308,9 @@ class ChatModel(QObject):
 
     @Slot()
     def _on_analysis_finished(self):
-        self.analysisFinished.emit(); self.statusMessage.emit(self.tr("Анализ репозитория завершен."), 5000); self._summarizer_worker = None
+        self.analysisFinished.emit()
+        self.statusMessage.emit(self.tr("Анализ репозитория завершен."), 5000)
+        # Очистка теперь происходит в _cleanup_summarizer_thread
 
     # --- RAG и основной запрос к API ---
     def send_request_to_api(self, user_input: str):
