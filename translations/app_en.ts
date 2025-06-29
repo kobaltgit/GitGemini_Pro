@@ -4,216 +4,229 @@
   <context>
     <name>ChatModel</name>
     <message>
-      <location filename="..\chat_model.py" line="164" />
-      <location filename="..\chat_model.py" line="158" />
+      <location filename="..\chat_model.py" line="167" />
+      <location filename="..\chat_model.py" line="161" />
       <source>Загружен</source>
       <translation>Loaded</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="164" />
-      <location filename="..\chat_model.py" line="158" />
+      <location filename="..\chat_model.py" line="167" />
+      <location filename="..\chat_model.py" line="161" />
       <source>Не найден!</source>
       <translation>Not found!</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="159" />
+      <location filename="..\chat_model.py" line="162" />
       <source>Ключ API: {0}</source>
       <translation>API Key: {0}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="165" />
+      <location filename="..\chat_model.py" line="168" />
       <source>Токен GitHub: {0}</source>
       <translation>GitHub Token: {0}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="170" />
+      <location filename="..\chat_model.py" line="173" />
       <source>{0} не может быть пустым.</source>
       <translation>{0} cannot be empty.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="176" />
+      <location filename="..\chat_model.py" line="179" />
       <source>{0} успешно сохранен.</source>
       <translation>{0} saved successfully.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="178" />
+      <location filename="..\chat_model.py" line="181" />
       <source>Ошибка сохранения {0}.</source>
       <translation>Error saving {0}.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="180" />
+      <location filename="..\chat_model.py" line="183" />
       <source>Ошибка сохранения: {0}</source>
       <translation>Save error: {0}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="193" />
+      <location filename="..\chat_model.py" line="196" />
       <source>Ошибка Gemini: {0}</source>
       <translation>Gemini Error: {0}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="199" />
+      <location filename="..\chat_model.py" line="202" />
       <source>Токен GitHub: Загружен ({0})</source>
       <translation>GitHub Token: Loaded ({0})</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="201" />
+      <location filename="..\chat_model.py" line="204" />
       <source>Токен GitHub: Ошибка!</source>
       <translation>GitHub Token: Error!</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="201" />
+      <location filename="..\chat_model.py" line="204" />
       <source>Неверный токен GitHub.</source>
       <translation>Invalid GitHub token.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="209" />
+      <location filename="..\chat_model.py" line="212" />
       <source>Не удалось загрузить список моделей.</source>
       <translation>Failed to load model list.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="223" />
+      <location filename="..\chat_model.py" line="226" />
       <source>Не все компоненты готовы к анализу (репозиторий, ветка, модель Gemini).</source>
       <translation>Not all components are ready for analysis (repository, branch, Gemini model).</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="226" />
+      <location filename="..\chat_model.py" line="229" />
       <source>Анализ уже запущен.</source>
       <translation>Analysis is already running.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="233" />
+      <location filename="..\chat_model.py" line="236" />
       <source>Не удалось создать векторную базу данных для анализа.</source>
       <translation>Failed to create vector database for analysis.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="237" />
+      <location filename="..\chat_model.py" line="240" />
       <source>В этой ветке не найдено файлов с указанными расширениями.</source>
       <translation>No files with the specified extensions were found in this branch.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="241" />
+      <location filename="..\chat_model.py" line="243" />
+      <source>Получение дерева файлов репозитория...</source>
+      <translation>Fetching repository file tree...</translation>
+    </message>
+    <message>
+      <location filename="..\chat_model.py" line="248" />
       <source>Начат анализ {0} файлов в '{1}'...</source>
       <translation>Starting analysis of {0} files in '{1}'...</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="258" />
+      <location filename="..\chat_model.py" line="265" />
       <source>Отмена анализа...</source>
       <translation>Canceling analysis...</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="279" />
+      <location filename="..\chat_model.py" line="286" />
       <source>Анализ... {0}/{1}</source>
       <translation>Analyzing... {0}/{1}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="283" />
+      <location filename="..\chat_model.py" line="290" />
       <source>Анализ репозитория завершен.</source>
       <translation>Repository analysis complete.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="291" />
+      <location filename="..\chat_model.py" line="298" />
       <source>Введите ваш запрос.</source>
       <translation>Enter your query.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="295" />
+      <location filename="..\chat_model.py" line="302" />
       <source>Этап 1: Поиск релевантных фрагментов в базе знаний...</source>
       <translation>Step 1: Searching for relevant snippets in the knowledge base...</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="299" />
+      <location filename="..\chat_model.py" line="306" />
       <source>Релевантных фрагментов не найдено. Ответ будет основан на истории чата.</source>
       <translation>No relevant snippets found. The answer will be based on chat history.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="302" />
+      <location filename="..\chat_model.py" line="309" />
       <source>Этап 2: Формирование контекста из {0} фрагментов...</source>
       <translation>Step 2: Building context from {0} snippets...</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="308" />
+      <location filename="..\chat_model.py" line="315" />
       <source>Ошибка: Не удалось сформировать запрос. Слишком большой объем данных.</source>
       <translation>Error: Failed to form the request. Data volume is too large.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="323" />
+      <location filename="..\chat_model.py" line="341" />
       <source>Дождитесь завершения предыдущего запроса.</source>
       <translation>Please wait for the previous request to complete.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="325" />
+      <location filename="..\chat_model.py" line="343" />
       <source>Ключи API не загружены.</source>
       <translation>API keys are not loaded.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="327" />
+      <location filename="..\chat_model.py" line="345" />
       <source>Репозиторий не проанализирован. Нажмите 'Анализировать'.</source>
       <translation>Repository has not been analyzed. Click 'Analyze'.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="329" />
+      <location filename="..\chat_model.py" line="347" />
       <source>База знаний пуста. Запустите анализ.</source>
       <translation>Knowledge base is empty. Start the analysis.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="337" />
+      <location filename="..\chat_model.py" line="354" />
       <source>Извлеченные релевантные документы для контекста ({0} шт.):</source>
       <translation>Relevant documents retrieved for context ({0} items): </translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="352" />
-      <location filename="..\chat_model.py" line="339" />
+      <location filename="..\chat_model.py" line="368" />
+      <location filename="..\chat_model.py" line="356" />
       <source>Неизвестный файл</source>
       <translation>Unknown file</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="344" />
+      <location filename="..\chat_model.py" line="360" />
       <source>  {0}. Файл: '{1}', Тип: '{2}', Дистанция: {3:.4f}, Содержимое: '{4}...'</source>
       <translation>  {0}. File: '{1}', Type: '{2}', Distance: {3:.4f}, Content: '{4}...'</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="355" />
+      <location filename="..\chat_model.py" line="371" />
       <source>--- Фрагмент из файла: {0} (Тип: {1}) ---
 </source>
       <translation>--- Snippet from file: {0} (Type: {1}) ---
 </translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="372" />
+      <location filename="..\chat_model.py" line="387" />
       <source>на русском языке</source>
       <translation>in Russian</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="372" />
+      <location filename="..\chat_model.py" line="387" />
       <source>in English</source>
       <translation>in English</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="375" />
-      <source>Ты — мой высококвалифицированный ассистент по программированию и анализу кода. Тебе предоставлен контекст, который включает в себя:
-- Фрагменты кода (chunks) из различных файлов репозитория.
-- Краткие саммари (summaries) этих файлов.
+      <location filename="..\chat_model.py" line="389" />
+      <source>Ты — мой высококвалифицированный ассистент по программированию и анализу кода. Тебе предоставлен контекст, который включает:
+1. Полное дерево файлов репозитория.
+2. Фрагменты кода (chunks) и краткие описания (summaries) некоторых файлов, которые я счел релевантными.
 
-Твои задачи:
-1. Внимательно изучай предоставленный контекст. При запросах о коде, функциях или классах,    старайся найти и использовать информацию из *фрагментов кода*.
-2. Отвечай на мои вопросы, основываясь строго на предоставленной информации.    Если информации в контексте недостаточно для полного ответа, четко сообщи об этом.
-3. Если я прошу внести изменения в код, предоставь измененные фрагменты или полные файлы,    в зависимости от моего запроса.
-4. Всегда объясняй, что и почему ты предлагаешь изменить.
-5. Предлагай коммиты в стиле Conventional Commits, когда это уместно.
-</source>
-      <translation>You are my highly qualified programming and code analysis assistant. You will be provided with context, which includes:
-- Code chunks from various repository files.
-- Brief summaries of these files.
+Твоя задача — отвечать на мои вопросы о коде.
 
-Your tasks:
-1. Carefully study the provided context. When asked about code, functions, or classes, try to find and use information from the code chunks.
-2. Answer my questions strictly based on the provided information. If the context does not contain enough information for a complete answer, clearly state so.
-3. If I ask you to make changes to the code, provide the modified fragments or full files, depending on my request.
-4. Always explain what and why you are suggesting changes.
-5. Suggest commits in Conventional Commits style, when appropriate.</translation>
+**КРИТИЧЕСКИ ВАЖНОЕ ПРАВИЛО:**
+Если для ответа на вопрос тебе не хватает информации из предоставленных фрагментов, но ты видишь нужный файл в **дереве файлов**, ты должен запросить его содержимое. Для этого твой ответ должен быть ТОЛЬКО JSON-объектом строго следующего формата:
+```json
+{{"action": "request_file", "file_path": "полный/путь/к/файлу.py"}}
+```
+Не добавляй никакого другого текста или объяснений, кроме этого JSON. Я автоматически обработаю твой запрос, предоставлю тебе содержимое файла, и ты сможешь дать окончательный ответ на мой первоначальный вопрос.
+
+Если же информации достаточно, или ты не уверен, какой файл нужен, или вопрос не о коде, отвечай как обычно, основываясь на предоставленном контексте. Всегда объясняй, что и почему ты предлагаешь изменить. Предлагай коммиты в стиле Conventional Commits, когда это уместно.</source>
+      <translation>You are my highly qualified assistant for programming and code analysis. You are provided with the following context:
+
+The complete file tree of the repository.
+Code snippets (chunks) and brief summaries of certain files that I deemed relevant.
+Your task is to answer my questions about the code.
+
+CRITICAL RULE:
+If you lack sufficient information from the provided snippets to answer a question, but you see the needed file in the file tree , you must request its content. Your response must be an EXCLUSIVE JSON object strictly in the following format:
+```json
+{{"action": "request_file", "file_path": "полный/путь/к/файлу.py"}}
+```
+Do not add any other text or explanations—only this JSON. I will automatically process your request, provide the file's contents, and then you can give a final answer to my original question.
+
+If the available information is sufficient, or if you're unsure which file is needed, or if the question is not about code, respond normally based on the provided context. Always explain what and why you suggest changing. Use Conventional Commit style when appropriate.
+    </translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="394" />
+      <location filename="..\chat_model.py" line="412" />
       <source>
 
 Дополнительные пользовательские инструкции:
@@ -226,86 +239,197 @@ Additional User Instructions:
 </translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="397" />
-      <source>Пожалуйста, отвечай на все вопросы {0}.</source>
-      <translation>Please answer all questions {0}.</translation>
+      <location filename="..\chat_model.py" line="414" />
+      <source>Пожалуйста, отвечай на все вопросы {0}, если не указано иное.</source>
+      <translation>Please answer all questions in {0}, unless otherwise specified.</translation>
+    </message>
+
+    <message>
+      <location filename="..\chat_model.py" line="419" />
+      <source>ОК. Я готов к работе. Правила запроса файлов и язык приняты.</source>
+      <translation>OK. I'm ready to work. File request rules and language are understood.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="404" />
-      <source>ОК. Я готов к работе. Инструкции и язык приняты.</source>
-      <translation>ОК. I'm ready to work. Instructions and language understood.</translation>
+      <location filename="..\chat_model.py" line="425" />
+      <source>**Полное дерево файлов проекта:**
+```
+{0}
+```</source>
+      <translation>**Full project file tree:**
+```
+{0}
+```
+      </translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="417" />
+      <location filename="..\chat_model.py" line="426" />
+      <source>OK. Дерево файлов проекта получено.</source>
+      <translation>OK. Project file tree received.</translation>
+    </message>
+    <message>
+      <location filename="..\chat_model.py" line="440" />
       <source>Ошибка: Инструкции и последний вопрос уже превышают лимит токенов ({0}).</source>
       <translation>Error: Instructions and the last question already exceed the token limit ({0}).</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="423" />
+      <location filename="..\chat_model.py" line="446" />
       <source>**Контекст из релевантных фрагментов проекта:**
 {0}</source>
       <translation>**Context from relevant project snippets:**
 {0}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="424" />
-      <source>OK. Контекст проекта получен.</source>
-      <translation>OK. Project context received.</translation>
+      <location filename="..\chat_model.py" line="447" />
+      <source>OK. Контекст из фрагментов получен.</source>
+      <translation>OK. Context from code snippets received.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="431" />
+      <location filename="..\chat_model.py" line="454" />
       <source>ПРЕДУПРЕЖДЕНИЕ: Контекст из файлов слишком большой и будет проигнорирован.</source>
       <translation>WARNING: Context from files is too large and will be ignored.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="463" />
+      <location filename="..\chat_model.py" line="497" />
+      <location filename="..\chat_model.py" line="487" />
+      <source>ИИ запросил файл: {0}. Получаю содержимое...</source>
+      <translation>AI requested file: {0}. Fetching content...</translation>
+    </message>
+
+    <message>
+      <location filename="..\chat_model.py" line="508" />
+      <source>Ошибка: Невозможно получить файл, нет данных о репозитории.</source>
+      <translation>Error: Unable to retrieve the file — no repository data available.</translation>
+    </message>
+
+    <message>
+      <location filename="..\chat_model.py" line="517" />
+      <source>Не удалось получить содержимое запрошенного файла '{0}'. Возможно, он не существует или доступ запрещен.</source>
+      <translation>Failed to retrieve the contents of the requested file '{0}'. It may not exist or access may be denied.</translation>
+    </message>
+
+    <message>
+      <location filename="..\chat_model.py" line="524" />
+      <source>Запрошенный файл '{0}' слишком большой ({1:.1f} KB). Обработка прервана.</source>
+      <translation>The requested file '{0}' is too large ({1:.1f} KB). Processing has been aborted.</translation>
+    </message>
+
+    <message>
+      <location filename="..\chat_model.py" line="529" />
+      <source>Файл '{0}' получен. Формирую новый запрос к ИИ...</source>
+      <translation>File '{0}' received. Formulating a new AI request...</translation>
+    </message>
+    <message>
+      <location filename="..\chat_model.py" line="534" />
+      <source>Вот запрошенное содержимое файла '{0}':
+
+```
+{1}
+```
+
+Теперь, пожалуйста, ответь на мой первоначальный вопрос, используя эту новую информацию.</source>
+      <translation>Here is the requested content of the file '{0}':
+
+```
+{1}
+```
+Now, please answer my original question using this new information.
+      </translation>
+    </message>
+    <message>
+      <location filename="..\chat_model.py" line="557" />
       <source>GitHub не инициализирован.</source>
       <translation>GitHub is not initialized.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="467" />
+      <location filename="..\chat_model.py" line="561" />
       <source>Не удалось получить доступ к репозиторию.</source>
       <translation>Failed to access the repository.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="472" />
+      <location filename="..\chat_model.py" line="566" />
       <source>Загрузка списка веток...</source>
       <translation>Loading branch list...</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="480" />
+      <location filename="..\chat_model.py" line="574" />
       <source>Репозиторий '{0}' загружен.</source>
       <translation>Repository '{0}' loaded.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="487" />
+      <location filename="..\chat_model.py" line="581" />
       <source>Выбрана ветка: {0}. Требуется повторный анализ.</source>
       <translation>Branch selected: {0}. Re-analysis is required.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="530" />
+      <location filename="..\chat_model.py" line="624" />
       <source>Новая сессия создана.</source>
       <translation>New session created.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="544" />
+      <location filename="..\chat_model.py" line="640" />
       <source>Не удалось загрузить сессию: {0}</source>
       <translation>Failed to load session: {0}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="568" />
+      <location filename="..\chat_model.py" line="669" />
+      <source>Предупреждение: сохраненная ветка '{0}' не найдена. Установлена ветка по умолчанию.</source>
+      <translation>Warning: Saved branch '{0}' not found. Default branch has been set.</translation>
+    </message>
+
+    <message>
+      <location filename="..\chat_model.py" line="672" />
+      <source>Предупреждение: не удалось получить доступ к репозиторию '{0}'.</source>
+      <translation>Warning: Failed to access repository '{0}'.</translation>
+    </message>
+    <message>
+      <location filename="..\chat_model.py" line="687" />
       <source>Сессия '{0}' загружена.</source>
       <translation>Session '{0}' loaded.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="589" />
+      <location filename="..\chat_model.py" line="707" />
       <source>Сессия сохранена.</source>
       <translation>Session saved.</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="591" />
+      <location filename="..\chat_model.py" line="709" />
       <source>Не удалось сохранить сессию: {0}</source>
       <translation>Failed to save session: {0}</translation>
+    </message>
+    <message>
+      <source>Ты — мой высококвалифицированный ассистент по программированию и анализу кода. Тебе предоставлен контекст, который включает в себя:
+- Фрагменты кода (chunks) из различных файлов репозитория.
+- Краткие саммари (summaries) этих файлов.
+
+Твои задачи:
+1. Внимательно изучай предоставленный контекст. При запросах о коде, функциях или классах,    старайся найти и использовать информацию из *фрагментов кода*.
+2. Отвечай на мои вопросы, основываясь строго на предоставленной информации.    Если информации в контексте недостаточно для полного ответа, четко сообщи об этом.
+3. Если я прошу внести изменения в код, предоставь измененные фрагменты или полные файлы,    в зависимости от моего запроса.
+4. Всегда объясняй, что и почему ты предлагаешь изменить.
+5. Предлагай коммиты в стиле Conventional Commits, когда это уместно.
+</source>
+      <translation type="vanished">You are my highly qualified programming and code analysis assistant. You will be provided with context, which includes:
+- Code chunks from various repository files.
+- Brief summaries of these files.
+
+Your tasks:
+1. Carefully study the provided context. When asked about code, functions, or classes, try to find and use information from the code chunks.
+2. Answer my questions strictly based on the provided information. If the context does not contain enough information for a complete answer, clearly state so.
+3. If I ask you to make changes to the code, provide the modified fragments or full files, depending on my request.
+4. Always explain what and why you are suggesting changes.
+5. Suggest commits in Conventional Commits style, when appropriate.</translation>
+    </message>
+    <message>
+      <source>Пожалуйста, отвечай на все вопросы {0}.</source>
+      <translation type="vanished">Please answer all questions {0}.</translation>
+    </message>
+    <message>
+      <source>ОК. Я готов к работе. Инструкции и язык приняты.</source>
+      <translation type="vanished">ОК. I'm ready to work. Instructions and language understood.</translation>
+    </message>
+    <message>
+      <source>OK. Контекст проекта получен.</source>
+      <translation type="vanished">OK. Project context received.</translation>
     </message>
     <message>
       <source>**Системные инструкции:**
@@ -443,17 +567,17 @@ Additional User Instructions:
   <context>
     <name>GeminiWorker</name>
     <message>
-      <location filename="..\chat_model.py" line="69" />
+      <location filename="..\chat_model.py" line="71" />
       <source>Неизвестно</source>
       <translation>Unknown</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="72" />
+      <location filename="..\chat_model.py" line="74" />
       <source>Генерация прервана. Причина: {0}</source>
       <translation>Generation interrupted. Reason: {0}</translation>
     </message>
     <message>
-      <location filename="..\chat_model.py" line="76" />
+      <location filename="..\chat_model.py" line="78" />
       <source>Ошибка API Gemini: {0} - {1}</source>
       <translation>Gemini API Error: {0} - {1}</translation>
     </message>
@@ -582,31 +706,48 @@ Additional User Instructions:
     </message>
     <message>
       <location filename="..\github_manager.py" line="172" />
+      <source>Ошибка: Репозиторий не предоставлен.</source>
+      <translation>Error: Repository not provided.</translation>
+    </message>
+
+    <message>
+      <location filename="..\github_manager.py" line="174" />
+      <source>Получение текстового представления дерева файлов для '{0}' в ветке '{1}'...</source>
+      <translation>Fetching text representation of file tree for '{0}' in branch '{1}'...</translation>
+    </message>
+
+    <message>
+      <location filename="..\github_manager.py" line="206" />
+      <source>Не удалось сгенерировать дерево файлов: {0}</source>
+      <translation>Failed to generate file tree: {0}</translation>
+    </message>
+    <message>
+      <location filename="..\github_manager.py" line="215" />
       <source>get_file_content вызван с пустым путем. Пропуск.</source>
       <translation>get_file_content called with an empty path. Skipping.</translation>
     </message>
     <message>
-      <location filename="..\github_manager.py" line="175" />
+      <location filename="..\github_manager.py" line="218" />
       <source>Запрос содержимого файла: {0} из ветки {1}</source>
       <translation>Requesting file content: {0} from branch {1}</translation>
     </message>
     <message>
-      <location filename="..\github_manager.py" line="180" />
+      <location filename="..\github_manager.py" line="223" />
       <source>Путь '{0}' указывает на директорию, а не на файл. Пропуск.</source>
       <translation>Path '{0}' points to a directory, not a file. Skipping.</translation>
     </message>
     <message>
-      <location filename="..\github_manager.py" line="187" />
+      <location filename="..\github_manager.py" line="230" />
       <source>Файл '{0}' пуст или имеет неизвестную кодировку: {1}</source>
       <translation>File '{0}' is empty or has an unknown encoding: {1}</translation>
     </message>
     <message>
-      <location filename="..\github_manager.py" line="190" />
+      <location filename="..\github_manager.py" line="233" />
       <source>Файл '{0}' не найден в ветке '{1}'.</source>
       <translation>File '{0}' not found in branch '{1}'.</translation>
     </message>
     <message>
-      <location filename="..\github_manager.py" line="193" />
+      <location filename="..\github_manager.py" line="236" />
       <source>Не удалось получить содержимое файла '{0}': {1}</source>
       <translation>Failed to get content of file '{0}': {1}</translation>
     </message>
@@ -632,80 +773,135 @@ Additional User Instructions:
   <context>
     <name>LogFileReaderWorker</name>
     <message>
-      <location filename="..\log_viewer_window.py" line="82" />
+      <location filename="..\log_viewer_window.py" line="101" />
       <source>Папка логов не существует: {0}</source>
       <translation>Logs folder does not exist: {0}</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="101" />
-      <source>Не удалось открыть файл лога: {0}</source>
-      <translation>Failed to open log file: {0}</translation>
+      <location filename="..\log_viewer_window.py" line="112" />
+      <source>Файл лога не найден при запуске: {0}. Ожидание создания.</source>
+      <translation>Log file not found on startup: {0}. Waiting for it to be created.</translation>
     </message>
+
     <message>
-      <location filename="..\log_viewer_window.py" line="128" />
-      <source>Файл лога '{0}' усечен. Переоткрытие и переход в конец.</source>
-      <translation>Log file '{0}' truncated. Reopening and moving to end.</translation>
+      <location filename="..\log_viewer_window.py" line="134" />
+      <source>Не удалось открыть файл лога для чтения: {0}</source>
+      <translation>Failed to open log file for reading: {0}</translation>
     </message>
+
+    <message>
+      <location filename="..\log_viewer_window.py" line="146" />
+      <source>Не удалось установить кодировку UTF-8 через QStringConverter.Encoding. Ошибка: {0}</source>
+      <translation>Failed to set UTF-8 encoding via QStringConverter.Encoding. Error: {0}</translation>
+    </message>
+
     <message>
       <location filename="..\log_viewer_window.py" line="151" />
+      <source>Использована системная кодировка как fallback для {0}.</source>
+      <translation>Fallback to system encoding for {0}.</translation>
+    </message>
+
+    <message>
+      <location filename="..\log_viewer_window.py" line="153" />
+      <source>Критическая ошибка: Не удалось установить системную кодировку через QStringConverter.Encoding. Ошибка: {0}</source>
+      <translation>Critical error: Failed to set system encoding via QStringConverter.Encoding. Error: {0}</translation>
+    </message>
+
+    <message>
+      <location filename="..\log_viewer_window.py" line="165" />
+      <source>Файл лога '{0}' усечен (старый размер чтения: {1}, новый размер: {2}). Чтение с начала.</source>
+      <translation>Log file '{0}' was truncated (previous read size: {1}, new size: {2}). Reading from beginning.</translation>
+    </message>
+
+    <message>
+      <location filename="..\log_viewer_window.py" line="185" />
+      <source>Ошибка чтения из QTextStream. Статус: {0}</source>
+      <translation>Read error from QTextStream. Status: {0}</translation>
+    </message>
+
+    <message>
+      <location filename="..\log_viewer_window.py" line="199" />
+      <source>Ошибка при чтении данных из лог-файла '{0}': {1}</source>
+      <translation>Error reading data from log file '{0}': {1}</translation>
+    </message>
+
+    <message>
+      <location filename="..\log_viewer_window.py" line="236" />
+      <source>Файл лога '{0}' исчез. Вероятно, ротация. Удаляем из watcher.</source>
+      <translation>Log file '{0}' disappeared. Likely rotated. Removing from watcher.</translation>
+    </message>
+
+    <message>
+      <location filename="..\log_viewer_window.py" line="248" />
+      <source>Обнаружен файл лога '{0}'. Вероятно, начальная загрузка или ротация. Начинаем отслеживание и читаем с начала.</source>
+      <translation>Log file '{0}' detected. Likely initial load or rotation. Starting tracking and reading from the beginning.</translation>
+    </message>
+    <message>
+      <source>Не удалось открыть файл лога: {0}</source>
+      <translation type="vanished">Failed to open log file: {0}</translation>
+    </message>
+    <message>
+      <source>Файл лога '{0}' усечен. Переоткрытие и переход в конец.</source>
+      <translation type="vanished">Log file '{0}' truncated. Reopening and moving to end.</translation>
+    </message>
+    <message>
       <source>Файл лога '{0}' больше не существует. Ожидание его повторного появления.</source>
-      <translation>Log file '{0}' no longer exists. Waiting for it to reappear.</translation>
-    </message>    
+      <translation type="vanished">Log file '{0}' no longer exists. Waiting for it to reappear.</translation>
+    </message>
   </context>
   <context>
     <name>LogViewerWindow</name>
     <message>
-      <location filename="..\log_viewer_window.py" line="179" />
+      <location filename="..\log_viewer_window.py" line="273" />
       <source>Логи приложения</source>
       <translation>Application Logs</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="196" />
+      <location filename="..\log_viewer_window.py" line="292" />
       <source>Поиск:</source>
       <translation>Search:</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="198" />
+      <location filename="..\log_viewer_window.py" line="294" />
       <source>Введите текст для поиска...</source>
       <translation>Enter text to search...</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="202" />
+      <location filename="..\log_viewer_window.py" line="298" />
       <source>Предыдущее совпадение (Shift+Enter)</source>
       <translation>Previous match (Shift+Enter)</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="207" />
+      <location filename="..\log_viewer_window.py" line="303" />
       <source>Следующее совпадение (Enter)</source>
       <translation>Next match (Enter)</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="337" />
-      <location filename="..\log_viewer_window.py" line="283" />
-      <location filename="..\log_viewer_window.py" line="226" />
+      <location filename="..\log_viewer_window.py" line="538" />
+      <location filename="..\log_viewer_window.py" line="471" />
+      <location filename="..\log_viewer_window.py" line="439" />
+      <location filename="..\log_viewer_window.py" line="322" />
       <source>Поиск: 0/0</source>
       <translation>Search: 0/0</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="237" />
+      <location filename="..\log_viewer_window.py" line="333" />
       <source>Очистить окно логов</source>
       <translation>Clear log window</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="263" />
-      <source>LogViewerWindow: Запущено чтение логов из {0}</source>
-      <translation>LogViewerWindow: Started reading logs from {0}</translation>
-    </message>
-    <message>
-      <location filename="..\log_viewer_window.py" line="335" />
+      <location filename="..\log_viewer_window.py" line="536" />
       <source>Поиск: {0}/{1}</source>
       <translation>Search: {0}/{1}</translation>
     </message>
     <message>
-      <location filename="..\log_viewer_window.py" line="377" />
+      <source>LogViewerWindow: Запущено чтение логов из {0}</source>
+      <translation type="vanished">LogViewerWindow: Started reading logs from {0}</translation>
+    </message>
+    <message>
       <source>LogViewerWindow: Чтение логов остановлено.</source>
-      <translation>LogViewerWindow: Log reading stopped.</translation>
-    </message>  
+      <translation type="vanished">LogViewerWindow: Log reading stopped.</translation>
+    </message>
   </context>
   <context>
     <name>MainWindow</name>
@@ -765,7 +961,7 @@ Additional User Instructions:
       <translation>View analyzed files and their summaries</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="575" />
+      <location filename="..\main.py" line="580" />
       <location filename="..\main.py" line="193" />
       <source>Развернуть настройки ▼</source>
       <translation>Expand Settings ▼</translation>
@@ -836,7 +1032,7 @@ Additional User Instructions:
       <translation>.log .csv .xml ...</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="580" />
+      <location filename="..\main.py" line="585" />
       <location filename="..\main.py" line="266" />
       <source>Свернуть инструкции ▲</source>
       <translation>Collapse Instructions ▲</translation>
@@ -902,180 +1098,180 @@ Additional User Instructions:
       <translation>&amp;Exit</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="339" />
+      <location filename="..\main.py" line="340" />
       <source>&amp;Справка</source>
       <translation>&amp;Help</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="340" />
+      <location filename="..\main.py" line="341" />
       <source>Содержание справки...</source>
       <translation>Help Contents...</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="345" />
+      <location filename="..\main.py" line="346" />
       <source>О программе...</source>
       <translation>About...</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="351" />
+      <location filename="..\main.py" line="352" />
       <source>&amp;Вид</source>
       <translation>&amp;View</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="353" />
+      <location filename="..\main.py" line="354" />
       <source>Показать &amp;Логи</source>
       <translation>Show &amp;Logs</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="375" />
+      <location filename="..\main.py" line="380" />
       <source>&amp;Язык</source>
       <translation>&amp;Language</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="381" />
+      <location filename="..\main.py" line="386" />
       <source>Русский</source>
       <translation>Russian</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="387" />
+      <location filename="..\main.py" line="392" />
       <source>English</source>
       <translation>English</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="411" />
+      <location filename="..\main.py" line="416" />
       <source>Смена языка</source>
       <translation>Language Change</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="412" />
+      <location filename="..\main.py" line="417" />
       <source>Язык будет изменен после перезапуска приложения.</source>
       <translation>The language will be changed after the application restarts.</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="682" />
-      <location filename="..\main.py" line="418" />
+      <location filename="..\main.py" line="687" />
+      <location filename="..\main.py" line="423" />
       <source>Ошибка сохранения</source>
       <translation>Save Error</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="419" />
+      <location filename="..\main.py" line="424" />
       <source>Не удалось сохранить настройку языка. Убедитесь, что у приложения есть права на запись в файл .env.</source>
       <translation>Failed to save language setting. Ensure the application has write permissions to the .env file.</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="575" />
+      <location filename="..\main.py" line="580" />
       <source>Свернуть настройки ▲</source>
       <translation>Collapse Settings ▲</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="580" />
+      <location filename="..\main.py" line="585" />
       <source>Развернуть инструкции ▼</source>
       <translation>Expand Instructions ▼</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="666" />
+      <location filename="..\main.py" line="671" />
       <source>Шаблоны инструкций загружены из '{0}': {1} шт.</source>
       <translation>Instruction templates loaded from '{0}': {1} items.</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="668" />
+      <location filename="..\main.py" line="673" />
       <source>Ошибка загрузки шаблонов из '{0}': {1}</source>
       <translation>Error loading templates from '{0}': {1}</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="672" />
+      <location filename="..\main.py" line="677" />
       <source>Файл шаблонов не найден: {0}</source>
       <translation>Template file not found: {0}</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="678" />
+      <location filename="..\main.py" line="683" />
       <source>Шаблоны инструкций сохранены в {0}</source>
       <translation>Instruction templates saved to {0}</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="681" />
+      <location filename="..\main.py" line="686" />
       <source>Ошибка сохранения шаблонов: {0}</source>
       <translation>Error saving templates: {0}</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="682" />
+      <location filename="..\main.py" line="687" />
       <source>Не удалось сохранить шаблоны: {0}</source>
       <translation>Failed to save templates: {0}</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="698" />
+      <location filename="..\main.py" line="703" />
       <source>Нечего сохранять</source>
       <translation>Nothing to save</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="698" />
+      <location filename="..\main.py" line="703" />
       <source>Поле инструкций пустое.</source>
       <translation>The instructions field is empty.</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="701" />
+      <location filename="..\main.py" line="706" />
       <source>Сохранить шаблон</source>
       <translation>Save Template</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="701" />
+      <location filename="..\main.py" line="706" />
       <source>Введите имя нового шаблона:</source>
       <translation>Enter the name for the new template:</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="704" />
+      <location filename="..\main.py" line="709" />
       <source>Перезаписать?</source>
       <translation>Overwrite?</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="704" />
+      <location filename="..\main.py" line="709" />
       <source>Шаблон '{0}' уже существует. Перезаписать?</source>
       <translation>Template '{0}' already exists. Overwrite?</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="728" />
+      <location filename="..\main.py" line="733" />
       <source>Ошибка</source>
       <translation>Error</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="728" />
+      <location filename="..\main.py" line="733" />
       <source>Компонент управления шаблонами не загружен.</source>
       <translation>Template management component not loaded.</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="745" />
+      <location filename="..\main.py" line="750" />
       <source>выходом из приложения</source>
       <translation>exiting the application</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="752" />
+      <location filename="..\main.py" line="763" />
       <source>Несохраненные изменения</source>
       <translation>Unsaved Changes</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="752" />
+      <location filename="..\main.py" line="763" />
       <source>Имеются несохраненные изменения.
 Сохранить их перед {0}?</source>
       <translation>There are unsaved changes.
 Save them before {0}?</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="759" />
+      <location filename="..\main.py" line="770" />
       <source>созданием новой сессии</source>
       <translation>creating a new session</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="761" />
+      <location filename="..\main.py" line="772" />
       <source>открытием другой сессии</source>
       <translation>opening another session</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="783" />
+      <location filename="..\main.py" line="794" />
       <source>О программе GitGemini Pro</source>
       <translation>About GitGemini Pro</translation>
     </message>
     <message>
-      <location filename="..\main.py" line="784" />
+      <location filename="..\main.py" line="795" />
       <source>&lt;b&gt;GitGemini Pro v1.0&lt;/b&gt;&lt;br&gt;&lt;br&gt;Интеллектуальный ассистент для анализа кодовой базы GitHub-репозиториев с использованием моделей Google Gemini.&lt;br&gt;&lt;br&gt;Автор: &lt;a href='mailto:kobaltmail@gmail.com'&gt;kobaltGIT&lt;/a&gt;&lt;br&gt;Лицензия: MIT License</source>
       <translation>&lt;b&gt;GitGemini Pro v1.0&lt;/b&gt;&lt;br&gt;&lt;br&gt;An intelligent assistant for analyzing the codebase of GitHub repositories using Google Gemini models.&lt;br&gt;&lt;br&gt;Author: &lt;a href='mailto:kobaltmail@gmail.com'&gt;kobaltGIT&lt;/a&gt;&lt;br&gt;License: MIT License</translation>
     </message>

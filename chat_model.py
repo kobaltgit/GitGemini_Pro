@@ -507,6 +507,9 @@ class ChatModel(QObject):
         if not self._github_manager or not self._repo_object or not self._repo_branch:
             self.apiErrorOccurred.emit(self.tr("Ошибка: Невозможно получить файл, нет данных о репозитории."))
             return
+        
+        # НОРМАЛИЗАЦИЯ ПУТИ: Удаляем префикс с именем репозитория, если он есть
+        path_to_fetch = file_path.removeprefix(f"{self._repo_object.name}/")
 
         content = self._github_manager.get_file_content(self._repo_object, file_path, self._repo_branch)
 
