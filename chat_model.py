@@ -541,10 +541,17 @@ class ChatModel(QObject):
 
     def load_session(self, filepath: str):
         loaded_data = db_manager.load_session_data(filepath)
-        if not loaded_data: self.sessionError.emit(self.tr("Не удалось загрузить сессию: {0}").format(filepath)); return
-        
+        if not loaded_data:
+            self.sessionError.emit(self.tr("Не удалось загрузить сессию: {0}").format(filepath))
+            return
+
         meta, msgs, summaries = loaded_data
-        self._chat_history, self._file_summaries = msgs, summaries
+        
+        # --- Прямое обновление состояния без вызова сеттеров, которые сбрасывают данные ---
+        
+        # 1. Загружаем историю, саммари и настройки
+        self._chat_history = msgs
+        self._file_summaries = summaries # <- Сохраняем загруженные саммари
         self._model_name = meta.get("model_name", "gemini-1.5-flash-latest")
         self._max_output_tokens = meta.get("max_output_tokens", 65536)
         self._extensions = tuple(p.strip() for p in meta.get("extensions", ".py").split())
@@ -552,21 +559,44 @@ class ChatModel(QObject):
         self._current_session_filepath = filepath
         self._is_dirty = False
 
+        # 2. Настраиваем путь к векторной БД
         self._vector_db_path = meta.get("vector_db_path")
         if not self._vector_db_path:
             self._vector_db_path = filepath.replace(db_manager.SESSION_EXTENSION, "_vectordb")
         self._vector_db_manager.set_db_path(self._vector_db_path)
+
+        # 3. Устанавливаем данные репозитория напрямую
+        self._repo_url = meta.get("repo_url")
+        self._repo_branch = meta.get("repo_branch")
         
-        repo_url = meta.get("repo_url")
-        if repo_url:
-            self.set_repo_url(repo_url)
-            branch = meta.get("repo_branch")
-            if branch in self._available_branches: self.set_repo_branch(branch)
-            collection_name = self._generate_collection_name(repo_url, self._repo_branch)
+        # 4. Получаем объект репозитория и ветки, но без сброса данных
+        if self._repo_url and self._github_manager:
+            repo_data = self._github_manager.get_repo(self._repo_url)
+            if repo_data:
+                self._repo_object, _ = repo_data
+                self._available_branches = self._github_manager.get_available_branches(self._repo_object)
+                if self._repo_branch not in self._available_branches:
+                    self.statusMessage.emit(self.tr("Предупреждение: сохраненная ветка '{0}' не найдена. Установлена ветка по умолчанию.").format(self._repo_branch), 5000)
+                    self._repo_branch = self._repo_object.default_branch
+            else:
+                self.statusMessage.emit(self.tr("Предупреждение: не удалось получить доступ к репозиторию '{0}'.").format(self._repo_url), 5000)
+                self._repo_object, self._available_branches = None, []
+        else:
+            self._repo_object, self._available_branches = None, []
+
+        # 5. Восстанавливаем коллекцию БД
+        if self._repo_url and self._repo_branch:
+            collection_name = self._generate_collection_name(self._repo_url, self._repo_branch)
             self._current_collection = self._vector_db_manager.create_or_get_collection(collection_name)
-        
-        self.sessionLoaded.emit(); self.statusMessage.emit(self.tr("Сессия '{0}' загружена.").format(os.path.basename(filepath)), 5000)
+        else:
+            self._current_collection = None
+
+        # --- Теперь, когда все состояние восстановлено, отправляем сигналы в UI ---
+        self.sessionLoaded.emit() # Сообщаем ViewModel, что нужно обновить все поля
+        self.repoDataChanged.emit(self._repo_url, self._repo_branch, self._available_branches)
+        self.fileSummariesChanged.emit(self._file_summaries) # <- Отправляем загруженные саммари
         self._update_token_count()
+        self.statusMessage.emit(self.tr("Сессия '{0}' загружена.").format(os.path.basename(filepath)), 5000)
 
     def save_session(self, filepath: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         save_path = filepath or self._current_session_filepath
