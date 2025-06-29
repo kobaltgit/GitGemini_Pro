@@ -168,7 +168,7 @@ class SummarizerWorker(QObject):
                 if content.strip():
                     prompt = self.summarization_prompt_template.format(file_path=file_path, file_content=content)
                     try:
-                        response = self.generative_model.generate_content(prompt, request_options={"timeout": 60})
+                        response = self.generative_model.generate_content(prompt, request_options={"timeout": 180})
                         summary_text = response.text.strip()
                         logger.info(self.tr("Успешно создано саммари для '{0}'.").format(file_path))
                     except google_exceptions.ResourceExhausted as e:
