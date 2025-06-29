@@ -78,10 +78,10 @@
     <div class="important">
         <p><strong>Важно:</strong> Для преобразования текстов в векторы (эмбеддинги) программа использует локальную ONNX-модель `all-MiniLM-L6-v2`. Поскольку большие файлы не хранятся в репозитории, ее необходимо скачать вручную один раз.</p>
         <ol>
-            <li>В корневой папке проекта создайте новую папку с именем <code>onnx_model</code>.</li>
+            <li>В корневой папке проекта создайте новую структуру папок с именем <code>resources/models/onnx_model</code>.</li>
             <li>Перейдите на страницу модели в Hugging Face по <a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/onnx">этой ссылке</a>.</li>
             <li>Найдите файл <code>model.onnx</code> и скачайте его (нажмите на иконку со стрелкой вниз).</li>
-            <li>Поместите скачанный файл в созданную вами папку <code>onnx_model</code>.</li>
+            <li>Поместите скачанный файл в созданную вами папку <code>resources/models/onnx_model</code>.</li>
         </ol>
     </div>
 
@@ -105,6 +105,48 @@
     <p>
         После получения ключей введите их в соответствующие поля в разделе "Настройки" и нажмите "Сохранить". Ключи будут сохранены локально в файл <code>.env</code>.
     </p>
+
+    <h3>Шаг 3: Компиляция грамматик Tree-sitter (для анализа кода)</h3>
+    <div class="important">
+        <p>
+            Для интеллектуального разбиения кода на основе синтаксиса GitGemini Pro использует библиотеку Tree-sitter. Вам необходимо скомпилировать необходимые грамматики один раз.
+        </p>
+        <ol>
+            <li>В корневой папке проекта создайте новую папку с именем <code>grammars</code>.</li>
+            <li>Склонируйте репозитории с нужными грамматиками в папку <code>grammars</code>. Рекомендуемый набор включает:
+                <ul>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-python</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-javascript</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-html</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-css</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-json</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-java</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-c-sharp</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-cpp</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-go</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-ruby</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-rust</code></li>
+                    <li><code>git clone https://github.com/tree-sitter/tree-sitter-bash</code></li>
+                    <li><code>git clone https://github.com/ikatyang/tree-sitter-yaml</code></li>
+                    <!-- Примечание: tree-sitter-typescript, tree-sitter-php, tree-sitter-sql исключены из-за проблем с компиляцией на Windows. -->
+                </ul>
+            </li>
+            <li>Убедитесь, что у вас установлены <b>инструменты сборки C/C++</b> для вашей операционной системы:
+                <ul>
+                    <li><b>Windows:</b> Установите "Build Tools for Visual Studio" (рабочая нагрузка "Разработка классических приложений на C++"). Затем откройте <b>"x64 Native Tools Command Prompt for VS 2022"</b>.</li>
+                    <li><b>Linux (Debian/Ubuntu):</b> <code>sudo apt-get install build-essential</code></li>
+                    <li><b>macOS:</b> <code>xcode-select --install</code></li>
+                </ul>
+            </li>
+            <li>В вашем активированном виртуальном окружении Python, из корневого каталога проекта, запустите скрипт компиляции:
+                <pre><code>python build_grammars.py</code></pre>
+            </li>
+            <li>Это создаст единый файл библиотеки (например, <code>languages.dll</code>) в папке <code>resources/grammars</code>. Этот файл необходим для интеллектуального анализа кода.</li>
+        </ol>
+        <p>
+            Если какую-либо грамматику не удается скомпилировать (например, из-за специфических сложностей на Windows), приложение автоматически переключится на более простой метод разбиения по символам для файлов этого языка. Основная функциональность останется неизменной.
+        </p>
+    </div>
 
     <h2>Основные элементы интерфейса</h2>
     <ul>

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import sys  # <--- ДОБАВЛЕН ИМПОРТ
 import numpy as np
 from transformers import AutoTokenizer, AutoConfig
 import onnxruntime as ort
@@ -27,13 +28,22 @@ class ONNXEmbeddingModel(QObject):
         super().__init__()
         logger.info(self.tr("Загрузка компонентов для ONNX-модели: {0}").format(MODEL_NAME))
 
-        # Определяем путь к локальному файлу модели
         try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(script_dir, "onnx_model", "model.onnx")
+            # --- НАЧАЛО НОВОЙ ЛОГИКИ ОПРЕДЕЛЕНИЯ ПУТИ ---
+            # Определяем базовый путь для ресурсов в зависимости от режима запуска
+            if getattr(sys, 'frozen', False):
+                # Если приложение скомпилировано (например, PyInstaller)
+                base_path = os.path.dirname(sys.executable)
+            else:
+                # Если запускается как обычный .py скрипт
+                base_path = os.path.dirname(os.path.abspath(__file__))
+
+            # Формируем путь к файлу модели внутри папки ресурсов
+            model_path = os.path.join(base_path, "resources", "models", "onnx_model", "model.onnx")
+            # --- КОНЕЦ НОВОЙ ЛОГИКИ ОПРЕДЕЛЕНИЯ ПУТИ ---
 
             if not os.path.exists(model_path):
-                error_message = self.tr("Файл модели не найден по пути: {0}. Пожалуйста, скачайте его, как описано в инструкции.").format(model_path)
+                error_message = self.tr("Файл модели не найден по пути: {0}. Пожалуйста, убедитесь, что он существует и находится в папке 'resources/models/onnx_model'.").format(model_path)
                 logger.critical(error_message)
                 raise FileNotFoundError(error_message)
 

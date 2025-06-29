@@ -344,10 +344,7 @@ class ChatModel(QObject):
         self._gemini_worker = GeminiWorker(self._gemini_model, prompt, self._max_output_tokens)
         thread = QThread()
         self._gemini_worker.moveToThread(thread)
-        # Отключаем старый обработчик, чтобы избежать дублирования
-        try: self._gemini_worker.response_received.disconnect(self._handle_final_api_response)
-        except (RuntimeError, TypeError): pass
-        # Подключаем новый, универсальный обработчик
+        # Подключаем универсальный обработчик
         self._gemini_worker.response_received.connect(self._on_api_response_received)
         
         self._gemini_worker.error_occurred.connect(self._handle_final_api_error)

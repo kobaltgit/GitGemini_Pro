@@ -93,18 +93,28 @@ pip install PySide6-WebEngine
 1.  В корневой папке проекта создайте новую папку с именем `onnx_model`.
 2.  Перейдите на страницу модели в Hugging Face по [этой ссылке](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/tree/main/onnx).
 3.  Скачайте файл `model.onnx` (нажмите на иконку со стрелкой вниз).
-4.  Поместите скачанный файл `model.onnx` в созданную вами папку `onnx_model`.
+4.  Поместите скачанный файл `model.onnx` в созданную вами папку `resources/models/onnx_model`.
 
 После этого структура вашего проекта должна выглядеть так:
 
 ```text
 GitGemini_Pro/
-├── onnx_model/
-│   └── model.onnx
-├── .venv/
-├── main.py
+├── resources/
+│   ├── models/
+│   │   └── onnx_model/
+│   │       └── model.onnx
+│   └── grammars/
+│       └── languages.dll  # Будет создан после шага 6
 └── ...
 ```
+
+### **Изменение 2: Добавление инструкций по компиляции Tree-sitter**
+
+Это совершенно новый раздел для `README.md`.
+
+**Инструкции:**
+Найдите следующий фрагмент, начинающийся с `### 6. Настройка ключей доступа`.
+**Перед ним** вставьте новый раздел.
 
 ### 6. Настройка ключей доступа
 
@@ -122,7 +132,43 @@ GITHUB_TOKEN="ВАШ_GITHUB_PAT"
 
 В качестве альтернативы, вы можете запустить программу и ввести ключи через интерфейс. Они будут автоматически сохранены в `.env` файл.
 
-### 7. Запуск приложения
+### 7. Компиляция грамматик Tree-sitter (для интеллектуального анализа кода)
+
+Для интеллектуального разбиения кода на основе синтаксиса GitGemini Pro использует библиотеку Tree-sitter. Вам необходимо скомпилировать необходимые грамматики один раз.
+
+1.  В корневой папке проекта создайте новую папку с именем `grammars`.
+2.  Склонируйте репозитории с нужными грамматиками в папку `grammars`. Рекомендуемый набор включает:
+    ```bash
+    cd grammars
+    git clone https://github.com/tree-sitter/tree-sitter-python
+    git clone https://github.com/tree-sitter/tree-sitter-javascript
+    git clone https://github.com/tree-sitter/tree-sitter-html
+    git clone https://github.com/tree-sitter/tree-sitter-css
+    git clone https://github.com/tree-sitter/tree-sitter-json
+    git clone https://github.com/tree-sitter/tree-sitter-java
+    git clone https://github.com/tree-sitter/tree-sitter-c-sharp
+    git clone https://github.com/tree-sitter/tree-sitter-cpp
+    git clone https://github.com/tree-sitter/tree-sitter-go
+    git clone https://github.com/tree-sitter/tree-sitter-ruby
+    git clone https://github.com/tree-sitter/tree-sitter-rust
+    git clone https://github.com/tree-sitter/tree-sitter-bash
+    git clone https://github.com/ikatyang/tree-sitter-yaml
+    # Note: tree-sitter-typescript, tree-sitter-php, tree-sitter-sql are excluded due to compilation issues on Windows.
+    cd ..
+    ```
+3.  Убедитесь, что у вас установлены **инструменты сборки C/C++** для вашей операционной системы:
+    *   **Windows:** Установите "Build Tools for Visual Studio" (рабочая нагрузка "Разработка классических приложений на C++"). Затем откройте **"x64 Native Tools Command Prompt for VS 2022"**.
+    *   **Linux (Debian/Ubuntu):** `sudo apt-get install build-essential`
+    *   **macOS:** `xcode-select --install`
+4.  В вашем активированном виртуальном окружении Python, из корневого каталога проекта, запустите скрипт компиляции:
+    ```bash
+    python build_grammars.py
+    ```
+5.  Это создаст единый файл библиотеки (например, `languages.dll`) в папке `resources/grammars`. Этот файл необходим для интеллектуального анализа кода.
+
+Если какая-либо грамматика не удается скомпилировать (например, из-за специфических сложностей на Windows), приложение автоматически переключится на более простой метод разбиения по символам для файлов этого языка. Основная функциональность останется неизменной.
+
+### 8. Запуск приложения
 
 После выполнения всех шагов запустите главный файл:
 ```bash

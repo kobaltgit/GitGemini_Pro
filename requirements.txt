@@ -2,6 +2,7 @@
 
 # Основной фреймворк GUI
 PySide6
+PyQt6
 
 # Для работы с файлами окружения (.env)
 python-dotenv
@@ -32,3 +33,6 @@ chromadb
 # Для работы с ONNX-моделями эмбеддингов.
 # Устанавливает 'optimum', 'onnx' и 'onnxruntime' для CPU-совместимости.
 optimum[onnxruntime]
+
+# Для парсинга кода и создания синтаксических деревьев
+tree-sitter

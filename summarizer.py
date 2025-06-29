@@ -1,15 +1,19 @@
 # --- Файл: summarizer.py ---
 
+import os
 import logging
 from typing import Dict, Optional, List, Any
 
-from PySide6.QtCore import QObject, Signal, Slot, QLocale
+from PySide6.QtCore import QObject, Signal, Slot
 
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
 
 from github_manager import GitHubManager
 from github.Repository import Repository
+
+# --- НОВЫЕ ИМПОРТЫ ---
+from code_splitter import TreeSitterSplitter, RecursiveCharacterSplitter
 
 # Настраиваем логгер для этого модуля
 logger = logging.getLogger(__name__)
@@ -48,108 +52,7 @@ The response should be only the summary text, without any extra phrases or intro
 """
 
 
-# --- НОВЫЙ КЛАСС ДЛЯ РАЗБИЕНИЯ ТЕКСТА ---
-class SimpleTextSplitter:
-    """
-    Реализация рекурсивного сплиттера текста на фрагменты (чанки).
-    Предназначен для разбиения как обычного текста, так и кода,
-    пытаясь сохранить структурные единицы.
-    """
-    def __init__(self, chunk_size: int = 700, chunk_overlap: int = 150): # Немного уменьшены размеры для лучшей фокусировки кода
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
-        # Порядок важен: сначала пытаемся разбивать по крупным, осмысленным разделителям
-        # Для кода приоритет отдается определениям функций и классов.
-        self._separators = [
-            "\ndef ",    # Python: Определение функции
-            "\nclass ",   # Python: Определение класса
-            "\n\n",      # Пустая строка (часто отделяет логические блоки/абзацы)
-            "\n",        # Одиночный перевод строки (строка за строкой)
-            " ",         # Пробел (граница слова)
-            "",          # Пустая строка (последний запасной вариант: символ за символом)
-        ]
-        self._length_function = len # Используем длину символов
-
-    def split_text(self, text: str) -> List[str]:
-        """
-        Разбивает текст на чанки, стараясь сохранить структурные единицы.
-        Использует рекурсивный подход с учетом перекрытия.
-        """
-        final_chunks: List[str] = []
-        self._recursive_split(text, self._separators, final_chunks)
-        return final_chunks
-
-    def _recursive_split(self, text_to_split: str, separators: List[str], final_chunks: List[str]):
-        """
-        Внутренняя рекурсивная функция для разбиения текста.
-        """
-        # Базовый случай 1: Нет разделителей или текст пуст
-        if not separators or not text_to_split:
-            if text_to_split:
-                # Если текст все еще существует и нет разделителей,
-                # добавляем его как один чанк или принудительно разбиваем по символам, если он слишком большой.
-                if len(text_to_split) > self.chunk_size:
-                    # Принудительно разбиваем на чанки размера chunk_size,
-                    # сдвигаясь на (chunk_size - chunk_overlap)
-                    for i in range(0, len(text_to_split), self.chunk_size - self.chunk_overlap):
-                        chunk = text_to_split[i:i + self.chunk_size]
-                        final_chunks.append(chunk)
-                else:
-                    final_chunks.append(text_to_split)
-            return
-
-        current_separator = separators[0]
-        remaining_separators = separators[1:]
-
-        # Разбиваем текст по текущему разделителю
-        # Используем rstrip(' ') чтобы не было лишних пробелов перед def/class
-        if current_separator:
-            parts = text_to_split.split(current_separator)
-        else: # Запасной вариант: разбиение посимвольно (для пустой строки-разделителя)
-            parts = list(text_to_split)
-
-        # Комбинируем части обратно в чанки, учитывая chunk_size и chunk_overlap
-        current_chunk_elements: List[str] = []
-        current_chunk_length = 0
-
-        for i, part in enumerate(parts):
-            # Вычисляем "эффективную" длину этой части (включая разделитель, если она не первая в новом чанке)
-            effective_part_length = len(part)
-            if current_chunk_elements and current_separator: # Добавляем длину разделителя, если это не первая часть чанка
-                effective_part_length += len(current_separator)
-
-            # Если добавление этой части сделает текущий чанк слишком большим
-            if current_chunk_length + effective_part_length > self.chunk_size:
-                # Если у нас уже есть что-то в текущем чанке, завершаем его
-                if current_chunk_elements:
-                    chunk = current_separator.join(current_chunk_elements)
-                    # Рекурсивно разбиваем этот чанк, если он все еще слишком большой с помощью следующего разделителя
-                    if len(chunk) > self.chunk_size:
-                        self._recursive_split(chunk, remaining_separators, final_chunks)
-                    else:
-                        final_chunks.append(chunk)
-
-                # Начинаем новый чанк с перекрытием
-                overlap_content = self._get_overlap_content(current_separator.join(current_chunk_elements), self.chunk_overlap)
-                current_chunk_elements = [overlap_content] if overlap_content else []
-                current_chunk_length = len(overlap_content) if overlap_content else 0
-            
-            # Добавляем текущую часть к новому или существующему чанку
-            current_chunk_elements.append(part)
-            current_chunk_length += effective_part_length
-
-        # Обрабатываем последний оставшийся чанк
-        if current_chunk_elements:
-            chunk = current_separator.join(current_chunk_elements)
-            if len(chunk) > self.chunk_size:
-                self._recursive_split(chunk, remaining_separators, final_chunks)
-            else:
-                final_chunks.append(chunk)
-
-    def _get_overlap_content(self, text: str, overlap: int) -> str:
-        """Вспомогательная функция для получения содержимого для перекрытия."""
-        # Для перекрытия лучше брать с конца, чтобы сохранить контекст
-        return text[-overlap:] if len(text) > overlap else text
+# --- СТАРЫЙ КЛАСС SimpleTextSplitter УДАЛЕН ---
 
 
 # --- ПЕРЕРАБОТАННЫЙ WORKER ---
@@ -157,7 +60,7 @@ class SummarizerWorker(QObject):
     """
     Рабочий поток, который выполняет анализ файлов репозитория:
     1. Создает саммари с помощью Gemini.
-    2. Разбивает содержимое файла на чанки.
+    2. Разбивает содержимое файла на чанки с помощью подходящего сплиттера.
     3. Отправляет готовые документы и метаданные для добавления в векторную БД.
     """
     # Сигналы
@@ -174,7 +77,7 @@ class SummarizerWorker(QObject):
                  files_to_summarize: Dict[str, int],
                  gemini_api_key: str,
                  model_name: str,
-                 app_lang: str = 'en', # Добавляем app_lang
+                 app_lang: str = 'en',
                  parent: Optional[QObject] = None):
         super().__init__(parent)
         self.github_manager = github_manager
@@ -185,13 +88,39 @@ class SummarizerWorker(QObject):
         self.model_name = model_name
         self._is_cancelled = False
         self.generative_model: Optional[genai.GenerativeModel] = None
-        self.text_splitter = SimpleTextSplitter(chunk_size=1000, chunk_overlap=150)
-
+        
+        # --- НОВАЯ ЛОГИКА ИНИЦИАЛИЗАЦИИ СПЛИТТЕРОВ ---
+        self.ts_splitter: Optional[TreeSitterSplitter] = None
+        self.fallback_splitter = RecursiveCharacterSplitter(chunk_size=1000, chunk_overlap=150)
+        
         # Выбираем шаблон промпта в зависимости от переданного app_lang
         if app_lang == 'ru':
             self.summarization_prompt_template = SUMMARIZATION_PROMPT_RU
         else:
             self.summarization_prompt_template = SUMMARIZATION_PROMPT_EN
+            
+        self._initialize_tree_sitter()
+
+    def _initialize_tree_sitter(self):
+        """Пытается инициализировать TreeSitterSplitter."""
+        try:
+            # Определяем путь к скомпилированной библиотеке
+            if getattr(sys, 'frozen', False): # Для скомпилированного приложения
+                base_path = os.path.dirname(sys.executable)
+            else: # Для режима разработки
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            
+            lib_name = "languages.dll" if os.name == 'nt' else "languages.so"
+            lib_path = os.path.join(base_path, 'resources', 'grammars', lib_name)
+            
+            if os.path.exists(lib_path):
+                self.ts_splitter = TreeSitterSplitter(lib_path)
+                logger.info("Tree-sitter сплиттер успешно инициализирован.")
+            else:
+                logger.warning(f"Скомпилированная библиотека грамматик не найдена по пути '{lib_path}'. Будет использоваться только рекурсивный сплиттер.")
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации TreeSitterSplitter: {e}. Будет использоваться только рекурсивный сплиттер.")
+            self.ts_splitter = None
 
     def cancel(self):
         """Запрашивает отмену операции."""
@@ -234,14 +163,12 @@ class SummarizerWorker(QObject):
                 documents_to_add = []
                 metadatas_to_add = []
 
+                # 1. Создание саммари (логика осталась прежней)
                 summary_text = self.tr("(Файл пуст)")
                 if content.strip():
                     prompt = self.summarization_prompt_template.format(file_path=file_path, file_content=content)
                     try:
-                        response = self.generative_model.generate_content(
-                            prompt,
-                            request_options={"timeout": 60} # 60-секундный таймаут
-                        )
+                        response = self.generative_model.generate_content(prompt, request_options={"timeout": 60})
                         summary_text = response.text.strip()
                         logger.info(self.tr("Успешно создано саммари для '{0}'.").format(file_path))
                     except google_exceptions.ResourceExhausted as e:
@@ -258,14 +185,28 @@ class SummarizerWorker(QObject):
                 self.file_summarized.emit(file_path, summary_text)
                 documents_to_add.append(summary_text)
                 metadatas_to_add.append({'file_path': file_path, 'type': 'summary'})
-
+                
+                # 2. Разбиение на чанки (НОВАЯ ЛОГИКА)
                 if content.strip():
-                    chunks = self.text_splitter.split_text(content)
+                    _, file_extension = os.path.splitext(file_path)
+                    language = TreeSitterSplitter.LANGUAGE_MAP.get(file_extension.lower())
+                    
+                    chunks = []
+                    # Используем TreeSitterSplitter, если он доступен и язык поддерживается
+                    if self.ts_splitter and language and self.ts_splitter.is_language_supported(language):
+                        logger.debug(f"Использование Tree-sitter сплиттера для языка '{language}'...")
+                        chunks = self.ts_splitter.split_text(content, language)
+                    # В противном случае используем рекурсивный сплиттер
+                    else:
+                        logger.debug(f"Использование рекурсивного сплиттера для файла '{file_path}'...")
+                        chunks = self.fallback_splitter.split_text(content)
+
                     logger.debug(f"Файл '{file_path}' разбит на {len(chunks)} чанков.")
                     for i, chunk_text in enumerate(chunks):
                         documents_to_add.append(chunk_text)
                         metadatas_to_add.append({'file_path': file_path, 'type': 'chunk', 'chunk_num': i + 1})
 
+                # 3. Отправка данных в БД
                 if documents_to_add:
                     self.documents_for_db_ready.emit(documents_to_add, metadatas_to_add)
 
@@ -275,3 +216,6 @@ class SummarizerWorker(QObject):
         finally:
             logger.info(self.tr("Поток анализа завершил свою работу."))
             self.finished.emit()
+
+# --- Добавляем sys в импорты, если его еще нет в файле ---
+import sys

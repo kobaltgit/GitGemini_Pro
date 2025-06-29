@@ -65,3 +65,15 @@ __pycache__/
 
 # Игнорировать папку с ONNX-моделью
 onnx_model/
+
+# Tree-sitter source grammars (we only store the compiled library)
+grammars/
+
+# Compiled tree-sitter library (if accidentally placed in root)
+languages.so
+languages.dll
+languages.dylib
+
+# Temp files
+*.tmp
+*.bak
