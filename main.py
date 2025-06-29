@@ -39,6 +39,7 @@ from chat_model import ChatModel
 from chat_view import ChatView
 from chat_viewmodel import ChatViewModel
 from summaries_window import SummariesWindow
+from log_viewer_window import LogViewerWindow
 import db_manager
 
 try:
@@ -86,13 +87,15 @@ class HelpDialog(QDialog):
 
 # --- Основное окно приложения ---
 class MainWindow(QMainWindow):
-    def __init__(self, view_model: ChatViewModel, parent: Optional[QWidget] = None):
+    def __init__(self, view_model: ChatViewModel, log_file_path: str, parent: Optional[QWidget] = None): # Добавляем log_file_path
         super().__init__(parent)
         if not isinstance(view_model, ChatViewModel):
             raise TypeError("ViewModel required")
         self.view_model = view_model
         self.logger = logging.getLogger(__name__)
 
+        self._log_file_path = log_file_path # Сохраняем путь к лог-файлу
+        self._log_viewer_window: Optional[LogViewerWindow] = None # Инициализируем окно просмотра логов
         self.summaries_window: Optional[SummariesWindow] = None
 
         self._dotenv_path = self._get_resource_path('.env')
@@ -331,6 +334,7 @@ class MainWindow(QMainWindow):
                 file_menu.addSeparator()
         
         self._create_language_menu()
+        self._create_view_menu()
 
         # --- Help Menu ---
         help_menu = menu_bar.addMenu(self.tr("&Справка"))
@@ -342,6 +346,34 @@ class MainWindow(QMainWindow):
         about_action = QAction(self.tr("О программе..."), self)
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
+
+    def _create_view_menu(self):
+        """Создает меню для настроек отображения."""
+        view_menu = self.menuBar().addMenu(self.tr("&Вид"))
+        
+        show_logs_action = QAction(self.tr("Показать &Логи"), self)
+        show_logs_action.setShortcut(QKeySequence("Ctrl+L")) # Стандартное сочетание для логов
+        show_logs_action.triggered.connect(self._show_log_viewer)
+        view_menu.addAction(show_logs_action)
+
+    @Slot()
+    def _show_log_viewer(self):
+        """Создает (если нужно) и показывает окно просмотра логов."""
+        if self._log_viewer_window is None:
+            self.logger.info("Создание нового экземпляра LogViewerWindow.")
+            self._log_viewer_window = LogViewerWindow(self._log_file_path, self)
+            # Подключаемся к сигналу уничтожения, чтобы очистить ссылку
+            self._log_viewer_window.destroyed.connect(self._on_log_viewer_destroyed)
+            self._log_viewer_window.show()
+        else:
+            # Если окно уже существует, просто активируем его
+            self._log_viewer_window.activateWindow()
+
+    @Slot()
+    def _on_log_viewer_destroyed(self):
+        """Слот, который вызывается при уничтожении окна логов."""
+        self.logger.info("Экземпляр LogViewerWindow был уничтожен, очищаем ссылку.")
+        self._log_viewer_window = None
 
     def _create_language_menu(self):
         """Создает меню для выбора языка."""
@@ -718,6 +750,12 @@ class MainWindow(QMainWindow):
         if not self._check_dirty_state(self.tr("выходом из приложения")):
             event.ignore()
             return
+        # Корректно останавливаем поток логгера перед выходом
+        if self._log_viewer_window is not None:
+            self.logger.info("Main window is closing, ensuring log reader thread is stopped...")
+            # Вызов close() окна логгера запустит его собственный closeEvent,
+            # который вызовет _stop_log_reading и дождется завершения потока.
+            self._log_viewer_window.close()
         event.accept()
 
     def _check_dirty_state(self, action_text: str) -> bool:
@@ -760,8 +798,8 @@ class MainWindow(QMainWindow):
                                   "Автор: <a href='mailto:kobaltmail@gmail.com'>kobaltGIT</a><br>"
                                   "Лицензия: MIT License"))
 
-def setup_logging():
-    """Настраивает глобальную систему логирования."""
+def setup_logging() -> str: # Указываем, что функция возвращает str
+    """Настраивает глобальную систему логирования и возвращает путь к текущему файлу лога."""
     log_dir = "logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -784,6 +822,7 @@ def setup_logging():
     root_logger.addHandler(console_handler)
     
     root_logger.info("Система логирования настроена.")
+    return log_filename # Возвращаем имя файла
 
 def get_base_path():
     """Определяет базовый путь для ресурсов и .env файла."""
@@ -821,20 +860,19 @@ def main():
     translations_path = os.path.join(base_path, 'translations')
     if translator.load(locale, "app", "_", translations_path):
         app.installTranslator(translator)
-        print(f"Файл перевода для локали '{app_lang}' успешно загружен.")
+        print(f"Файл перевода для локали '{app_lang}' успешно загружен.") # Добавил app_lang для лога
     else:
-        # Логирование еще не настроено, используем print
-        print(f"Не удалось загрузить файл перевода для локали '{locale.name()}' из {translations_path}")
+        print(f"Не удалось загрузить файл перевода для локали '{locale.name()}' из {translations_path}") # Используем print до настройки логгера
     
-    setup_logging()
+    log_file_path = setup_logging() # Захватываем путь к файлу логов
     
     logger = logging.getLogger(__name__)
     logger.info("="*20 + " Запуск приложения GitGemini Pro " + "="*20)
     logger.info(f"Используемый язык: {app_lang}")
 
-    chat_model = ChatModel(app_lang=app_lang) # Передаем выбранный язык в модель
+    chat_model = ChatModel(app_lang=app_lang)
     chat_view_model = ChatViewModel(chat_model)
-    window = MainWindow(chat_view_model)
+    window = MainWindow(chat_view_model, log_file_path=log_file_path) # Передаем путь к лог-файлу
     window.show()
     
     sys.exit(app.exec())
